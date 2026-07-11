@@ -22,6 +22,12 @@ import { z } from "zod";
  * standalone. Drift between the two is caught mechanically: the compiler
  * passes parsed declarations straight into the M2 AssetRegistry, so any
  * structural mismatch is a type error in the compiler.
+ *
+ * Every object schema is `.strict()` (decided at M7, when this schema
+ * became a real trust boundary): the Bible arrives as JSON from outside
+ * the type system, and a typo'd or unknown field must surface as a
+ * validation error — Zod's default of silently stripping it would make a
+ * reviewer approve one document while the compiler sees another.
  */
 
 // Bumped whenever a breaking change is made to this schema. Lets a future
@@ -37,7 +43,7 @@ export const TextAssetDeclSchema = z.object({
   kind: z.literal("text"),
   id: z.string().min(1),
   content: z.string().min(1),
-});
+}).strict();
 
 export const ImageAssetDeclSchema = z.object({
   kind: z.literal("image"),
@@ -45,14 +51,14 @@ export const ImageAssetDeclSchema = z.object({
   src: z.string().min(1),
   intrinsicWidth: z.number().int().positive(),
   intrinsicHeight: z.number().int().positive(),
-});
+}).strict();
 
 export const AudioAssetDeclSchema = z.object({
   kind: z.literal("audio"),
   id: z.string().min(1),
   src: z.string().min(1),
   durationInSeconds: z.number().positive(),
-});
+}).strict();
 
 export const AssetDeclSchema = z.discriminatedUnion("kind", [
   TextAssetDeclSchema,
@@ -69,7 +75,7 @@ export const PlacementSchema = z.object({
   y: z.number().finite(),
   scale: z.number().positive(),
   zIndex: z.number().int(),
-});
+}).strict();
 
 export const BeatSchema = z.object({
   // Stable, Claude-authored slug (e.g. "beat-2-problem"). Not a UUID —
@@ -112,7 +118,7 @@ export const BeatSchema = z.object({
   // (not defaulted by the compiler) because layout is a creative decision
   // and the compiler is not allowed to make decisions — only to execute.
   placement: PlacementSchema,
-});
+}).strict();
 
 export const SceneSchema = z.object({
   // Stable, Claude-authored slug, same rationale as Beat.id.
@@ -125,7 +131,7 @@ export const SceneSchema = z.object({
   // A scene must contain at least one beat; an empty scene has no timeline
   // contribution and is almost certainly a drafting mistake.
   beats: z.array(BeatSchema).min(1),
-});
+}).strict();
 
 export const BibleSchema = z.object({
   // See BIBLE_SCHEMA_VERSION above.
@@ -166,7 +172,7 @@ export const BibleSchema = z.object({
   // A Bible must contain at least one scene; an empty Bible describes no
   // video.
   scenes: z.array(SceneSchema).min(1),
-});
+}).strict();
 
 export type AssetDecl = z.infer<typeof AssetDeclSchema>;
 export type Placement = z.infer<typeof PlacementSchema>;

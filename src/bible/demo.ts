@@ -1,3 +1,4 @@
+import { createApproval } from "./approval";
 import type { Bible } from "./schema";
 
 /**
@@ -44,3 +45,16 @@ export const demoBible: Bible = {
     },
   ],
 };
+
+/**
+ * The fixture's committed self-approval. For a fixture this is honest —
+ * the document above IS reviewed, by being read and committed to git; the
+ * fixed timestamp keeps the module deterministic. Real Bibles get their
+ * approvals from the M13 review workflow, never from the code that
+ * defines them.
+ */
+export const demoApproval = createApproval(
+  demoBible,
+  "fixture",
+  "2026-07-11T00:00:00.000Z",
+);
