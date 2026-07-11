@@ -5,12 +5,20 @@
     "jsx": "react-jsx",
     "strict": true,
     "noEmit": true,
-    "lib": ["es2020"],
-    "types": ["web"],
+    "lib": [
+      "es2020"
+    ],
+    "types": [
+      "web"
+    ],
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "noUnusedLocals": true
   },
-  "exclude": ["remotion.config.ts", "author"]
+  "exclude": [
+    "remotion.config.ts",
+    "author",
+    "review"
+  ]
 }

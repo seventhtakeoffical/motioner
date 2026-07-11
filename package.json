@@ -29,8 +29,9 @@
     "dev": "remotion studio",
     "build": "remotion bundle",
     "upgrade": "remotion upgrade",
-    "lint": "eslint src && tsc && tsc -p author",
+    "lint": "eslint src && tsc && tsc -p author && tsc -p review",
     "test": "vitest run",
-    "author": "tsx author/author.ts"
+    "author": "tsx author/author.ts",
+    "review": "tsx review/cli.ts"
   }
 }
