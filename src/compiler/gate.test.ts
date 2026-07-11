@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createApproval } from "../bible/approval";
 import { demoApproval, demoBible } from "../bible/demo";
+import { showcaseApproval, showcaseBible } from "../bible/showcase";
 import { createDefaultRecipeRegistry } from "../recipes";
 import { compileBible } from "./compile";
 import { compileApprovedBible } from "./gate";
@@ -46,6 +47,30 @@ describe("compileApprovedBible (M7 gate)", () => {
     expect(() =>
       compileApprovedBible({ nonsense: true }, demoApproval, registry()),
     ).toThrow(/Invalid Production Bible/);
+  });
+
+  it("compiles the M8/M9 showcase fixture end-to-end through the gate", () => {
+    const plan = compileApprovedBible(
+      JSON.parse(JSON.stringify(showcaseBible)),
+      JSON.parse(JSON.stringify(showcaseApproval)),
+      registry(),
+    );
+    expect(plan.items).toHaveLength(5);
+    expect(plan.totalDurationInFrames).toBe(75 + 90 + 90 + 45 + 60);
+    expect(plan.items.map((i) => i.recipeName)).toEqual([
+      "typewriter",
+      "pan-zoom",
+      "draw-on",
+      "pop-in",
+      "slide-in",
+    ]);
+    expect(plan.items.map((i) => i.asset.kind)).toEqual([
+      "text",
+      "image",
+      "chart",
+      "icon",
+      "caption",
+    ]);
   });
 
   it("refuses malformed approval input", () => {

@@ -55,14 +55,24 @@ export interface RecipeFrameProps {
   offsetY: number;
   /** Scale multiplier applied on top of the asset's stage placement (1 = unchanged). */
   scale: number;
+  /**
+   * Fraction of the asset's content revealed, 0..1 (added at M9, optional
+   * for backwards compatibility; absent means 1 — fully revealed). This is
+   * a semantic channel, not a visual one: the recipe says "60% of the
+   * content is out", and the renderer decides what that means per asset
+   * kind (text: characters typed; chart: marks drawn). Recipes should only
+   * emit it when they declared the "revealable" capability.
+   */
+  reveal?: number;
 }
 
-/** The "do nothing" frame state: visible, unmoved, unscaled. */
+/** The "do nothing" frame state: visible, unmoved, unscaled, fully revealed. */
 export const NEUTRAL_FRAME_PROPS: RecipeFrameProps = {
   opacity: 1,
   offsetX: 0,
   offsetY: 0,
   scale: 1,
+  reveal: 1,
 };
 
 export interface Recipe {

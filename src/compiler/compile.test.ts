@@ -208,4 +208,19 @@ describe("binding validation (M5)", () => {
       compile(bible((b) => b.assets.push(structuredClone(b.assets[0])))),
     ).toThrow(/already registered/);
   });
+
+  it("rejects a real library recipe on an incapable asset (typewriter on image)", () => {
+    const b = bible((beat) => {
+      beat.assets.push({
+        kind: "image",
+        id: "photo",
+        src: "photo.png",
+        intrinsicWidth: 100,
+        intrinsicHeight: 100,
+      });
+      beat.scenes[0].beats[0].assetId = "photo";
+      beat.scenes[0].beats[0].recipeName = "typewriter";
+    });
+    expect(() => compile(b)).toThrow(/requires capability "textual"/);
+  });
 });

@@ -62,12 +62,67 @@ export interface AudioAsset {
   durationInSeconds: number;
 }
 
+// ---- Kinds added at M8 -------------------------------------------------
+
+export interface VideoAsset {
+  kind: "video";
+  id: AssetId;
+  src: string;
+  intrinsicWidth: number;
+  intrinsicHeight: number;
+  durationInSeconds: number;
+}
+
+// Icons carry their vector geometry inline (an SVG path + viewBox) rather
+// than a file reference. That is what makes the "colorable" capability
+// honest — inline geometry can be filled with any theme color at render
+// time, where a rasterized file could only be tinted approximately.
+export interface IconAsset {
+  kind: "icon";
+  id: AssetId;
+  viewBox: string;
+  path: string;
+}
+
+export interface ChartDatum {
+  label: string;
+  // Non-negative by contract (enforced by the Bible schema): the v1 bar
+  // renderer draws from a zero baseline, and signed data deserves a real
+  // design decision, not an accidental one.
+  value: number;
+}
+
+// Charts embed their data. The data IS the asset — script-derived creative
+// material that must survive in the Bible/plan, not something fetched at
+// render time (fetching would put I/O inside the deterministic boundary).
+export interface ChartAsset {
+  kind: "chart";
+  id: AssetId;
+  chartType: "bar";
+  data: readonly ChartDatum[];
+}
+
+// A caption is text in *role*, not just in content: renderers style it as
+// a lower-third, distinct from headline text. Same capabilities as text.
+export interface CaptionAsset {
+  kind: "caption";
+  id: AssetId;
+  content: string;
+}
+
 // The discriminated union is deliberately flat (each variant repeats `id`/
 // `kind` rather than extending a shared base interface). A small inheritance
 // hierarchy would save a few repeated lines but costs a layer of indirection
 // for no present benefit — three flat interfaces are easier to read in full
 // than a base type plus three extensions.
-export type Asset = TextAsset | ImageAsset | AudioAsset;
+export type Asset =
+  | TextAsset
+  | ImageAsset
+  | AudioAsset
+  | VideoAsset
+  | IconAsset
+  | ChartAsset
+  | CaptionAsset;
 
 export type AssetKind = Asset["kind"];
 
@@ -78,7 +133,8 @@ export type Capability =
   | "colorable" // supports recoloring/tinting
   | "spatial" // carries intrinsic extent larger than a single view, so a recipe may navigate across it
   | "scalable" // can be rendered at varying scale without a fixed native-size constraint
-  | "temporal"; // has an intrinsic duration that must be respected in the timeline
+  | "temporal" // has an intrinsic duration that must be respected in the timeline
+  | "revealable"; // content can be progressively revealed (text: characters; chart: marks) — added at M8
 
 // A fixed table, not a per-instance field: capability is a property of the
 // *kind* (every image is spatial), not something authored per asset
@@ -86,9 +142,13 @@ export type Capability =
 // an entry here whenever a new kind is added to the union above — a new
 // kind cannot be added without also declaring its capabilities.
 const ASSET_CAPABILITIES: Record<AssetKind, readonly Capability[]> = {
-  text: ["textual", "colorable"],
+  text: ["textual", "colorable", "revealable"],
   image: ["spatial", "scalable", "colorable"],
   audio: ["temporal"],
+  video: ["spatial", "scalable", "temporal"],
+  icon: ["scalable", "colorable"],
+  chart: ["scalable", "colorable", "revealable"],
+  caption: ["textual", "colorable", "revealable"],
 };
 
 export function getCapabilities(kind: AssetKind): readonly Capability[] {

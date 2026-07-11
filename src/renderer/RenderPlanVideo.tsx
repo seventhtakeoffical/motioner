@@ -1,9 +1,8 @@
 import React from "react";
 import { AbsoluteFill, Sequence, useCurrentFrame, useVideoConfig } from "remotion";
-import type { Asset } from "../assets";
 import { createDefaultRecipeRegistry } from "../recipes";
 import type { RenderPlan, RenderPlanItem } from "../render-plan";
-import type { StageTheme } from "../stage";
+import { AssetView } from "./AssetView";
 
 /**
  * The renderer: the ONLY module in the project that knows Remotion exists.
@@ -67,39 +66,12 @@ const BeatItemView: React.FC<{ item: RenderPlanItem }> = ({ item }) => {
           zIndex: item.placement.zIndex,
         }}
       >
-        <AssetView asset={item.asset} theme={item.theme} />
+        <AssetView
+          asset={item.asset}
+          theme={item.theme}
+          reveal={frameProps.reveal ?? 1}
+        />
       </div>
     </AbsoluteFill>
   );
-};
-
-const AssetView: React.FC<{ asset: Asset; theme: StageTheme }> = ({
-  asset,
-  theme,
-}) => {
-  switch (asset.kind) {
-    case "text":
-      return (
-        <div
-          style={{
-            color: theme.foregroundColor,
-            fontFamily: "Helvetica, Arial, sans-serif",
-            fontSize: 64,
-            fontWeight: 700,
-            lineHeight: 1.2,
-            textAlign: "center",
-            whiteSpace: "pre-wrap",
-          }}
-        >
-          {asset.content}
-        </div>
-      );
-    case "image":
-    case "audio":
-      // The M5 slice renders text only; broadening asset coverage is M8's
-      // deliverable (BUILD_PLAN.md). Failing loudly beats rendering nothing.
-      throw new Error(
-        `Rendering for "${asset.kind}" assets is not implemented until M8.`,
-      );
-  }
 };

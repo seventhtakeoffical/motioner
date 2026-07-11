@@ -60,10 +60,65 @@ export const AudioAssetDeclSchema = z.object({
   durationInSeconds: z.number().positive(),
 }).strict();
 
+// ---- Kinds added at M8 (additive: version stays "1") ----
+
+export const VideoAssetDeclSchema = z
+  .object({
+    kind: z.literal("video"),
+    id: z.string().min(1),
+    src: z.string().min(1),
+    intrinsicWidth: z.number().int().positive(),
+    intrinsicHeight: z.number().int().positive(),
+    durationInSeconds: z.number().positive(),
+  })
+  .strict();
+
+export const IconAssetDeclSchema = z
+  .object({
+    kind: z.literal("icon"),
+    id: z.string().min(1),
+    viewBox: z.string().min(1),
+    path: z.string().min(1),
+  })
+  .strict();
+
+export const ChartAssetDeclSchema = z
+  .object({
+    kind: z.literal("chart"),
+    id: z.string().min(1),
+    chartType: z.literal("bar"),
+    // Non-negative: the v1 bar renderer draws from a zero baseline (see
+    // src/assets/asset.ts). Data is embedded because fetching it at render
+    // time would put I/O inside the deterministic boundary.
+    data: z
+      .array(
+        z
+          .object({
+            label: z.string().min(1),
+            value: z.number().finite().nonnegative(),
+          })
+          .strict(),
+      )
+      .min(1),
+  })
+  .strict();
+
+export const CaptionAssetDeclSchema = z
+  .object({
+    kind: z.literal("caption"),
+    id: z.string().min(1),
+    content: z.string().min(1),
+  })
+  .strict();
+
 export const AssetDeclSchema = z.discriminatedUnion("kind", [
   TextAssetDeclSchema,
   ImageAssetDeclSchema,
   AudioAssetDeclSchema,
+  VideoAssetDeclSchema,
+  IconAssetDeclSchema,
+  ChartAssetDeclSchema,
+  CaptionAssetDeclSchema,
 ]);
 
 // Where a beat's asset sits on stage, in normalized frame coordinates
