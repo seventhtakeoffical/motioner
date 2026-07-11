@@ -31,6 +31,23 @@ function fail(itemId: string, message: string): never {
   throw new Error(`Compile error at "${itemId}": ${message}`);
 }
 
+/**
+ * Recursively freezes a value in place. Paired with structuredClone at the
+ * emit boundary below: the clone severs every reference the plan would
+ * otherwise share with the input Bible, the asset registry, and stage
+ * defaults; the freeze makes the resulting value's immutability enforced
+ * rather than documented. Both are pure and deterministic.
+ */
+function deepFreeze<T>(value: T): T {
+  if (value !== null && typeof value === "object") {
+    for (const key of Object.keys(value)) {
+      deepFreeze((value as Record<string, unknown>)[key]);
+    }
+    Object.freeze(value);
+  }
+  return value;
+}
+
 export function compileBible(
   bible: Bible,
   recipes: RecipeRegistry,
@@ -122,11 +139,18 @@ export function compileBible(
     }
   }
 
-  return {
-    fps: bible.fps,
-    width: bible.width,
-    height: bible.height,
-    totalDurationInFrames: cursor,
-    items,
-  };
+  // The emit boundary: everything above may hold references into the input
+  // Bible (embedded assets) or module constants (the default theme); nothing
+  // below this line may. The plan the caller receives is a fully
+  // self-contained, deeply immutable value — mutating it is impossible, and
+  // no write to the Bible or any shared constant can reach into it.
+  return deepFreeze(
+    structuredClone({
+      fps: bible.fps,
+      width: bible.width,
+      height: bible.height,
+      totalDurationInFrames: cursor,
+      items,
+    }),
+  );
 }

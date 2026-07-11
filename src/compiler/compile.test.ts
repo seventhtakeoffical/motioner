@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { demoBible } from "../bible/demo";
 import type { Bible } from "../bible/schema";
 import { createDefaultRecipeRegistry } from "../recipes";
+import { DEFAULT_STAGE_THEME } from "../stage";
 import { compileBible } from "./compile";
 
 /**
@@ -56,6 +57,56 @@ describe("determinism (M6)", () => {
     // round-trip diverges and byte-comparison stops being meaningful.
     const plan = compile(bible());
     expect(JSON.parse(JSON.stringify(plan))).toEqual(plan);
+  });
+});
+
+describe("value isolation (staff-review issue #1)", () => {
+  it("shares no references with the input Bible, stage defaults, or other plans", () => {
+    const input = bible();
+    const plan = compile(input);
+    const item = plan.items[0];
+
+    // Direct proof of no aliasing: these were the actual leaks — the asset
+    // was the Bible's own object, the theme was the module constant.
+    expect(item.asset).not.toBe(input.assets[0]);
+    expect(item.theme).not.toBe(DEFAULT_STAGE_THEME);
+    expect(item.placement).not.toBe(input.scenes[0].beats[0].placement);
+
+    // Two compilations share nothing with each other either.
+    const other = compile(input);
+    expect(other.items[0].asset).not.toBe(item.asset);
+    expect(other.items[0].theme).not.toBe(item.theme);
+  });
+
+  it("is deeply frozen: every object in the plan rejects mutation", () => {
+    const plan = compile(bible());
+    const item = plan.items[0];
+    for (const obj of [plan, plan.items, item, item.asset, item.placement, item.theme]) {
+      expect(Object.isFrozen(obj)).toBe(true);
+    }
+  });
+
+  it("mutation attempts on the plan throw and leave the Bible and shared constants untouched", () => {
+    const input = bible();
+    const inputSnapshot = structuredClone(input);
+    const themeSnapshot = structuredClone(DEFAULT_STAGE_THEME);
+    const plan = compile(input);
+    const item = plan.items[0];
+
+    // Frozen objects throw on write in strict mode (ESM is always strict).
+    expect(() => {
+      (item.theme as { backgroundColor: string }).backgroundColor = "#ff0000";
+    }).toThrow(TypeError);
+    expect(() => {
+      (item.asset as { id: string }).id = "hijacked";
+    }).toThrow(TypeError);
+    expect(() => {
+      (plan.items as unknown[]).push("junk");
+    }).toThrow(TypeError);
+
+    // And regardless of the throws, nothing upstream moved.
+    expect(input).toEqual(inputSnapshot);
+    expect(DEFAULT_STAGE_THEME).toEqual(themeSnapshot);
   });
 });
 
