@@ -6,17 +6,70 @@ import { z } from "zod";
  * in this module is inferred from a Zod schema, never hand-written, so
  * validation rules and TypeScript types cannot drift apart.
  *
- * Nothing here references Assets, Recipes, or Registries — that typed
- * vocabulary doesn't exist yet (see M2/M3). Where a beat needs to describe
- * what appears on screen, it does so in plain language (`visualIntent`).
- * Binding that intent to concrete assets/recipes is compiler logic, added
- * from M5 onward.
+ * As of M5, the Bible carries the concrete bindings the compiler consumes:
+ * each Bible declares its assets, and each beat names the asset it shows,
+ * the recipe that choreographs it, and where on stage it sits. This is the
+ * binding step M1 deliberately deferred ("binding intent to concrete
+ * assets/recipes is M5+"), and it lives in the Bible — not in a separate
+ * bindings file — because the Bible is the *only* source of truth; a second
+ * input to the compiler would break that principle. No LLM runs downstream
+ * of this document, so nothing downstream may infer a binding from
+ * `visualIntent` free text: Claude proposes bindings at draft time, humans
+ * review them, and the compiler only validates and executes them.
+ *
+ * The asset declaration schemas below intentionally mirror the M2 asset
+ * vocabulary (src/assets) without importing it, keeping this module fully
+ * standalone. Drift between the two is caught mechanically: the compiler
+ * passes parsed declarations straight into the M2 AssetRegistry, so any
+ * structural mismatch is a type error in the compiler.
  */
 
 // Bumped whenever a breaking change is made to this schema. Lets a future
 // compiler detect "this Bible was authored against an older shape" and
 // refuse or migrate it, instead of silently misinterpreting fields.
 export const BIBLE_SCHEMA_VERSION = "1" as const;
+
+// ---- Asset declarations ------------------------------------------------
+// One schema per M2 asset kind. See the module comment for why these are
+// mirrored here instead of imported.
+
+export const TextAssetDeclSchema = z.object({
+  kind: z.literal("text"),
+  id: z.string().min(1),
+  content: z.string().min(1),
+});
+
+export const ImageAssetDeclSchema = z.object({
+  kind: z.literal("image"),
+  id: z.string().min(1),
+  src: z.string().min(1),
+  intrinsicWidth: z.number().int().positive(),
+  intrinsicHeight: z.number().int().positive(),
+});
+
+export const AudioAssetDeclSchema = z.object({
+  kind: z.literal("audio"),
+  id: z.string().min(1),
+  src: z.string().min(1),
+  durationInSeconds: z.number().positive(),
+});
+
+export const AssetDeclSchema = z.discriminatedUnion("kind", [
+  TextAssetDeclSchema,
+  ImageAssetDeclSchema,
+  AudioAssetDeclSchema,
+]);
+
+// Where a beat's asset sits on stage, in normalized frame coordinates
+// ((0,0) = top-left, (1,1) = bottom-right — the Stage module's convention).
+// Values outside [0,1] are legal on purpose: placing an asset off-screen is
+// how entrances/exits will be staged once transitions arrive (M10).
+export const PlacementSchema = z.object({
+  x: z.number().finite(),
+  y: z.number().finite(),
+  scale: z.number().positive(),
+  zIndex: z.number().int(),
+});
 
 export const BeatSchema = z.object({
   // Stable, Claude-authored slug (e.g. "beat-2-problem"). Not a UUID —
@@ -38,11 +91,27 @@ export const BeatSchema = z.object({
   durationInFrames: z.number().int().positive(),
 
   // Natural-language description of what should appear on screen during
-  // this beat (e.g. "Show a bar chart comparing X and Y rising"). Left as
-  // free text on purpose: the vocabulary for what can actually appear
-  // belongs to Assets (M2) and Recipes (M3), and resolving this string
-  // against that vocabulary is compiler logic (M5+), not part of the Bible.
+  // this beat (e.g. "Show a bar chart comparing X and Y rising"). Kept now
+  // that concrete bindings exist below: this is the *intent trace* a human
+  // reviewer checks the binding against ("does static-fade on the headline
+  // actually deliver what this sentence promises?").
   visualIntent: z.string().min(1),
+
+  // ---- Binding (added at M5) ----
+  // Which declared asset appears in this beat. Referential integrity
+  // (does this id exist in Bible.assets?) is the compiler's job, not the
+  // schema's — Zod validates shape, the compiler validates meaning.
+  assetId: z.string().min(1),
+
+  // Which recipe choreographs the asset. Same division: the schema checks
+  // it's a non-empty string; the compiler checks the recipe exists and its
+  // required capabilities are satisfied by the asset.
+  recipeName: z.string().min(1),
+
+  // Where the stage places the asset for this beat. Authored in the Bible
+  // (not defaulted by the compiler) because layout is a creative decision
+  // and the compiler is not allowed to make decisions — only to execute.
+  placement: PlacementSchema,
 });
 
 export const SceneSchema = z.object({
@@ -88,11 +157,19 @@ export const BibleSchema = z.object({
   width: z.number().int().positive(),
   height: z.number().int().positive(),
 
+  // Every asset the video uses, declared up front. Beats reference these
+  // by id. Declared in the Bible (not registered in code) because asset
+  // content — especially on-screen text — is script-derived creative
+  // material, which makes it Bible territory by definition.
+  assets: z.array(AssetDeclSchema).min(1),
+
   // A Bible must contain at least one scene; an empty Bible describes no
   // video.
   scenes: z.array(SceneSchema).min(1),
 });
 
+export type AssetDecl = z.infer<typeof AssetDeclSchema>;
+export type Placement = z.infer<typeof PlacementSchema>;
 export type Beat = z.infer<typeof BeatSchema>;
 export type Scene = z.infer<typeof SceneSchema>;
 export type Bible = z.infer<typeof BibleSchema>;
