@@ -68,7 +68,10 @@ describe("compileApprovedBible (M7 gate)", () => {
       ["tagline", "enter"],
     ]);
 
-    // Beat 4: three exits under a camera push-in; beat 5 resets the camera.
+    // Beat 4 opens scene 2: the boundary strikes the composed trio (M11's
+    // auto-strike — the Bible has no exit directives at all) under a
+    // camera push-in; beat 5 opens scene 3, striking the bolt and
+    // resetting the camera.
     expect(
       plan.beats[3].layers.filter((l) => l.role === "exit"),
     ).toHaveLength(3);
@@ -77,6 +80,17 @@ describe("compileApprovedBible (M7 gate)", () => {
     expect(plan.beats[4].layers.map((l) => [l.entityId, l.role])).toEqual([
       ["bolt", "exit"],
       ["mountains", "enter"],
+    ]);
+
+    // Video-level artifacts: scene map with absolute timing, and the
+    // preload manifest naming the one external media source.
+    expect(plan.scenes.map((s) => [s.id, s.startFrame, s.durationInFrames])).toEqual([
+      ["scene-data-story", 0, 225],
+      ["scene-punctuation", 225, 45],
+      ["scene-closing", 270, 90],
+    ]);
+    expect(plan.manifest).toEqual([
+      { kind: "image", src: "sample-image.svg" },
     ]);
   });
 

@@ -6,12 +6,14 @@ import type { Bible } from "./schema";
  * image, chart, icon, caption), the M9 recipe library (typewriter,
  * pan-zoom, draw-on, pop-in, slide-in), and — since M10 — real stage
  * continuity: the headline persists while the chart draws and the caption
- * slides in beneath both; beat 4 strikes all three (exit transitions) while
- * the icon pops in under a camera push-in; beat 5 strikes the icon, resets
- * the camera, and closes on drifting imagery. Like the M5 demo it is a
- * committed, self-approved fixture with a fixed timestamp. (Video/audio
- * kinds are exercised by the type system and renderer switch, but need
- * real media files — they get fixtures when real scripts do.)
+ * slides in beneath both. The stage-clears are scene boundaries (M11):
+ * crossing into scene 2 auto-strikes the composed trio while the icon pops
+ * in under a camera push-in; crossing into scene 3 strikes the icon,
+ * resets the camera, and closes on drifting imagery — no manual exit
+ * directives anywhere. Like the M5 demo it is a committed, self-approved
+ * fixture with a fixed timestamp. (Video/audio kinds are exercised by the
+ * type system and renderer switch, but need real media files — they get
+ * fixtures when real scripts do.)
  */
 export const showcaseBible: Bible = {
   schemaVersion: "1",
@@ -110,7 +112,6 @@ export const showcaseBible: Bible = {
           assetId: "bolt",
           recipeName: "pop-in",
           placement: { x: 0.5, y: 0.48, scale: 1, zIndex: 0 },
-          exit: ["headline", "adoption-chart", "tagline"],
           camera: { zoom: 1.25 },
         },
       ],
@@ -128,7 +129,6 @@ export const showcaseBible: Bible = {
           assetId: "mountains",
           recipeName: "pan-zoom",
           placement: { x: 0.5, y: 0.5, scale: 0.55, zIndex: 0 },
-          exit: ["bolt"],
           camera: { zoom: 1 },
         },
       ],

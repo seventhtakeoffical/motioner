@@ -85,6 +85,9 @@ describe("value isolation (staff-review issue #1)", () => {
     const layer = beat.layers[0];
     for (const obj of [
       plan,
+      plan.scenes,
+      plan.scenes[0],
+      plan.manifest,
       plan.beats,
       beat,
       beat.camera,
@@ -131,8 +134,20 @@ describe("compilation output (M5, reshaped at M10)", () => {
     expect(plan.totalDurationInFrames).toBe(90);
     expect(plan.beats).toHaveLength(1);
 
+    // Video-level artifacts (M11): scene map and preload manifest.
+    expect(plan.scenes).toEqual([
+      {
+        id: "scene-opening",
+        title: "Opening",
+        startFrame: 0,
+        durationInFrames: 90,
+      },
+    ]);
+    expect(plan.manifest).toEqual([]);
+
     const beat = plan.beats[0];
     expect(beat.id).toBe("scene-opening/beat-hello");
+    expect(beat.sceneId).toBe("scene-opening");
     expect(beat.startFrame).toBe(0);
     expect(beat.durationInFrames).toBe(90);
     // Default carried state: centered camera, default theme.

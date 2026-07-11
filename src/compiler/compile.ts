@@ -6,9 +6,11 @@ import {
   type RecipeRegistry,
 } from "../recipes";
 import type {
+  AssetManifestEntry,
   RenderPlan,
   RenderPlanBeat,
   RenderPlanLayer,
+  RenderPlanScene,
 } from "../render-plan";
 import {
   applyStageUpdates,
@@ -33,6 +35,17 @@ import {
  * layer, every other surviving placement as a "hold" layer, plus an "exit"
  * layer for each entity the beat strikes. Continuity is therefore computed
  * here, once, explicitly; the renderer never infers it.
+ *
+ * As of M11 that continuity is SCENE-SCOPED: a scene change strikes the
+ * set. Every entity still on stage when a scene ends is auto-struck —
+ * removed from the stage and given an explicit exit layer in the next
+ * scene's opening window, using the exact same vocabulary as a beat-level
+ * exit. Camera and theme deliberately carry across scenes (they are the
+ * auditorium, not the set dressing; scenes reset them explicitly with the
+ * usual directives when they want to). The compiler also derives the
+ * video-level artifacts a whole production needs: the scene map (absolute
+ * timing per scene) and the preload manifest (every external media source
+ * any layer references, deduped and value-sorted).
  *
  * Purity contract: same Bible + same registry contents => byte-identical
  * plan (M6 tests enforce this). No I/O, no clock, no randomness, and the
@@ -110,10 +123,21 @@ export function compileBible(
   let cursor = 0;
 
   const beats: RenderPlanBeat[] = [];
+  const scenes: RenderPlanScene[] = [];
   const seenBeatIds = new Set<string>();
+  const seenSceneIds = new Set<string>();
 
-  for (const scene of bible.scenes) {
-    for (const beat of scene.beats) {
+  for (const [sceneIndex, scene] of bible.scenes.entries()) {
+    // The composite beat-id check below can't catch two scenes sharing an
+    // id but with differently-named beats; the scene map needs ids of its
+    // own to be unambiguous.
+    if (seenSceneIds.has(scene.id)) {
+      fail(scene.id, `duplicate scene id — scene ids must be unique.`);
+    }
+    seenSceneIds.add(scene.id);
+    const sceneStartFrame = cursor;
+
+    for (const [beatIndex, beat] of scene.beats.entries()) {
       const beatId = `${scene.id}/${beat.id}`;
 
       // M1 chose not to enforce id uniqueness in the schema; the compiler
@@ -158,10 +182,32 @@ export function compileBible(
         );
       }
 
-      // ---- Exit validation (M10) ----
+      // ---- Exits: authored (M10) or scene-boundary strike (M11) ----
+      // A scene change strikes the set: on the first beat of every scene
+      // after the first, whatever survived the previous scene is struck
+      // automatically. Authored exit directives are therefore meaningless
+      // on a scene's opening beat — on scene one the stage is empty, and
+      // on later scenes the boundary already strikes everything — so the
+      // compiler rejects them rather than silently merging.
+      const isSceneOpening = beatIndex === 0;
+      let exitIds: readonly string[];
+      if (isSceneOpening) {
+        if (beat.exit !== undefined) {
+          fail(
+            beatId,
+            `exit directives are not allowed on the first beat of a scene — ` +
+              `scene boundaries strike all surviving entities automatically; ` +
+              `use exit only on later beats within a scene.`,
+          );
+        }
+        exitIds =
+          sceneIndex > 0 ? stage.placements.map((p) => p.assetId) : [];
+      } else {
+        exitIds = beat.exit ?? [];
+      }
+
       // Exiting entities must be captured from the PRE-update stage: their
       // final placement is what the exit transition plays at.
-      const exitIds = beat.exit ?? [];
       const seenExitIds = new Set<string>();
       const exitLayers: RenderPlanLayer[] = exitIds.map((exitId) => {
         if (seenExitIds.has(exitId)) {
@@ -173,7 +219,8 @@ export function compileBible(
           fail(
             beatId,
             `cannot exit asset "${exitId}": it is not on stage. ` +
-              `Assets are on stage from the beat that places them until a beat exits them.`,
+              `Assets are on stage from the beat that places them until a beat ` +
+              `exits them or their scene ends.`,
           );
         }
         return {
@@ -196,8 +243,13 @@ export function compileBible(
         if (beat.durationInFrames < exitRecipe.minDurationInFrames) {
           fail(
             beatId,
-            `beat is ${beat.durationInFrames} frames, but exiting assets ` +
-              `need at least ${exitRecipe.minDurationInFrames} for the exit transition.`,
+            `beat is ${beat.durationInFrames} frames, but ` +
+              (isSceneOpening
+                ? `the scene transition strikes ${exitLayers.length} carried-over ` +
+                  `entit${exitLayers.length === 1 ? "y" : "ies"} and `
+                : `exiting assets `) +
+              `need${isSceneOpening ? "s" : ""} at least ` +
+              `${exitRecipe.minDurationInFrames} frames for the exit transition.`,
           );
         }
       }
@@ -259,6 +311,7 @@ export function compileBible(
 
       beats.push({
         id: beatId,
+        sceneId: scene.id,
         startFrame: cursor,
         durationInFrames: beat.durationInFrames,
         camera: stage.camera,
@@ -268,7 +321,47 @@ export function compileBible(
 
       cursor += beat.durationInFrames;
     }
+
+    scenes.push({
+      id: scene.id,
+      title: scene.title,
+      startFrame: sceneStartFrame,
+      durationInFrames: cursor - sceneStartFrame,
+    });
   }
+
+  // ---- Preload manifest (M11) ----
+  // Every external media source any emitted layer references. Keyed on
+  // kind+src for dedup, then value-sorted: the manifest participates in
+  // the plan's byte-identical determinism like everything else, so its
+  // order must come from data, not from encounter order.
+  const manifestEntries = new Map<string, AssetManifestEntry>();
+  for (const window of beats) {
+    for (const layer of window.layers) {
+      const asset = layer.asset;
+      if (
+        asset.kind === "image" ||
+        asset.kind === "video" ||
+        asset.kind === "audio"
+      ) {
+        manifestEntries.set(`${asset.kind} ${asset.src}`, {
+          kind: asset.kind,
+          src: asset.src,
+        });
+      }
+    }
+  }
+  const manifest = [...manifestEntries.values()].sort((a, b) =>
+    a.src !== b.src
+      ? a.src < b.src
+        ? -1
+        : 1
+      : a.kind < b.kind
+        ? -1
+        : a.kind > b.kind
+          ? 1
+          : 0,
+  );
 
   // The emit boundary: everything above may hold references into the input
   // Bible (embedded assets) or module constants (the default theme); nothing
@@ -281,7 +374,9 @@ export function compileBible(
       width: bible.width,
       height: bible.height,
       totalDurationInFrames: cursor,
+      scenes,
       beats,
+      manifest,
     }),
   );
 }

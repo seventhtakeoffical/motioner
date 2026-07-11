@@ -1,4 +1,4 @@
-import type { Asset, AssetId } from "../assets";
+import type { Asset, AssetId, AssetKind } from "../assets";
 import type { StageCamera, StagePlacement, StageTheme } from "../stage";
 
 /**
@@ -67,6 +67,13 @@ export interface RenderPlanBeat {
   /** Deterministic identity, `${sceneId}/${beatId}`. Unique across the plan. */
   id: string;
 
+  /**
+   * The scene this window belongs to (M11). Explicit data, not something
+   * to parse back out of the composite id — tooling that needs scene
+   * membership reads it, never infers it.
+   */
+  sceneId: string;
+
   /** Absolute frame (0-based, in the whole video) at which this window begins. */
   startFrame: number;
 
@@ -86,6 +93,32 @@ export interface RenderPlanBeat {
   layers: readonly RenderPlanLayer[];
 }
 
+/**
+ * One row of the video's scene map (M11): where each scene sits on the
+ * absolute timeline. Scenes are the continuity scope — entities never
+ * survive past a scene's end (the compiler strikes them explicitly);
+ * camera and theme carry through.
+ */
+export interface RenderPlanScene {
+  /** The Bible scene's id. Unique across the plan (compiler-enforced). */
+  id: string;
+  /** Human-readable label, for navigation/chaptering tooling. */
+  title: string;
+  startFrame: number;
+  durationInFrames: number;
+}
+
+/**
+ * One entry of the preload manifest (M11): an external media source the
+ * video will load at render time. Lets render infrastructure prefetch
+ * without scanning plan internals. Only src-bearing kinds appear here —
+ * text, icons, charts, and captions are self-contained data.
+ */
+export interface AssetManifestEntry {
+  kind: Extract<AssetKind, "image" | "video" | "audio">;
+  src: string;
+}
+
 export interface RenderPlan {
   fps: number;
   width: number;
@@ -95,8 +128,22 @@ export interface RenderPlan {
   totalDurationInFrames: number;
 
   /**
+   * The scene map, in timeline order; scenes are contiguous runs of beat
+   * windows covering the whole timeline with no gaps.
+   */
+  scenes: readonly RenderPlanScene[];
+
+  /**
    * In timeline order (startFrame strictly increasing, windows contiguous).
    * Exactly one window per Bible beat.
    */
   beats: readonly RenderPlanBeat[];
+
+  /**
+   * Every external media source any layer references, deduplicated and
+   * lexicographically sorted (a value-based order — the manifest is part
+   * of the plan's byte-identical determinism contract like everything
+   * else). Assets declared in the Bible but never staged do not appear.
+   */
+  manifest: readonly AssetManifestEntry[];
 }
