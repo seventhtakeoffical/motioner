@@ -1,4 +1,6 @@
 import { drawOn } from "./draw-on";
+import { exitFade } from "./exit-fade";
+import { hold } from "./hold";
 import { panZoom } from "./pan-zoom";
 import { popIn } from "./pop-in";
 import { createRecipeRegistry, type RecipeRegistry } from "./registry";
@@ -26,5 +28,10 @@ export function createDefaultRecipeRegistry(): RecipeRegistry {
   registry.register(typewriter);
   registry.register(drawOn);
   registry.register(popIn);
+  // Continuity recipes (M10): emitted by the compiler for held and exiting
+  // stage entities. Ordinary recipes on purpose — same contract, same
+  // validation, same sampling path.
+  registry.register(hold);
+  registry.register(exitFade);
   return registry;
 }

@@ -49,27 +49,34 @@ describe("compileApprovedBible (M7 gate)", () => {
     ).toThrow(/Invalid Production Bible/);
   });
 
-  it("compiles the M8/M9 showcase fixture end-to-end through the gate", () => {
+  it("compiles the continuity showcase end-to-end through the gate", () => {
     const plan = compileApprovedBible(
       JSON.parse(JSON.stringify(showcaseBible)),
       JSON.parse(JSON.stringify(showcaseApproval)),
       registry(),
     );
-    expect(plan.items).toHaveLength(5);
-    expect(plan.totalDurationInFrames).toBe(75 + 90 + 90 + 45 + 60);
-    expect(plan.items.map((i) => i.recipeName)).toEqual([
-      "typewriter",
-      "pan-zoom",
-      "draw-on",
-      "pop-in",
-      "slide-in",
+    expect(plan.beats).toHaveLength(5);
+    expect(plan.totalDurationInFrames).toBe(75 + 90 + 60 + 45 + 90);
+
+    // The stage accumulates, clears with exits, and closes on one entity.
+    expect(plan.beats.map((b) => b.layers.length)).toEqual([1, 2, 3, 4, 2]);
+
+    // Beat 3: caption enters above the held headline and chart.
+    expect(plan.beats[2].layers.map((l) => [l.entityId, l.role])).toEqual([
+      ["adoption-chart", "hold"],
+      ["headline", "hold"],
+      ["tagline", "enter"],
     ]);
-    expect(plan.items.map((i) => i.asset.kind)).toEqual([
-      "text",
-      "image",
-      "chart",
-      "icon",
-      "caption",
+
+    // Beat 4: three exits under a camera push-in; beat 5 resets the camera.
+    expect(
+      plan.beats[3].layers.filter((l) => l.role === "exit"),
+    ).toHaveLength(3);
+    expect(plan.beats[3].camera.zoom).toBe(1.25);
+    expect(plan.beats[4].camera.zoom).toBe(1);
+    expect(plan.beats[4].layers.map((l) => [l.entityId, l.role])).toEqual([
+      ["bolt", "exit"],
+      ["mountains", "enter"],
     ]);
   });
 

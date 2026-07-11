@@ -173,6 +173,36 @@ export const BeatSchema = z.object({
   // (not defaulted by the compiler) because layout is a creative decision
   // and the compiler is not allowed to make decisions — only to execute.
   placement: PlacementSchema,
+
+  // ---- Continuity directives (added at M10, all optional/additive) ----
+  // Assets placed by earlier beats REMAIN on stage by default; these
+  // directives are how a beat changes the carried state. All apply as the
+  // beat begins and persist afterward.
+
+  // Asset ids struck from the stage. Each plays the exit transition during
+  // this beat. Must currently be on stage — exiting an absent asset is a
+  // continuity contradiction the compiler rejects.
+  exit: z.array(z.string().min(1)).optional(),
+
+  // A camera cut: partial on purpose (a beat that only zooms shouldn't
+  // restate position); merges into the carried camera state.
+  camera: z
+    .object({
+      x: z.number().finite().optional(),
+      y: z.number().finite().optional(),
+      zoom: z.number().positive().optional(),
+    })
+    .strict()
+    .optional(),
+
+  // Replaces the carried theme from this beat onward.
+  theme: z
+    .object({
+      backgroundColor: z.string().min(1),
+      foregroundColor: z.string().min(1),
+    })
+    .strict()
+    .optional(),
 }).strict();
 
 export const SceneSchema = z.object({

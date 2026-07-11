@@ -2,12 +2,16 @@ import { createApproval } from "./approval";
 import type { Bible } from "./schema";
 
 /**
- * The M8/M9 showcase fixture: five beats exercising the expanded asset
- * kinds (text, image, chart, icon, caption) against the expanded recipe
- * library (typewriter, pan-zoom, draw-on, pop-in, slide-in). Like the M5
- * demo it is a committed, self-approved fixture with a fixed timestamp.
- * (Video/audio kinds are exercised by the type system and renderer switch,
- * but need real media files — they get fixtures when real scripts do.)
+ * The showcase fixture: five beats exercising the M8 asset kinds (text,
+ * image, chart, icon, caption), the M9 recipe library (typewriter,
+ * pan-zoom, draw-on, pop-in, slide-in), and — since M10 — real stage
+ * continuity: the headline persists while the chart draws and the caption
+ * slides in beneath both; beat 4 strikes all three (exit transitions) while
+ * the icon pops in under a camera push-in; beat 5 strikes the icon, resets
+ * the camera, and closes on drifting imagery. Like the M5 demo it is a
+ * committed, self-approved fixture with a fixed timestamp. (Video/audio
+ * kinds are exercised by the type system and renderer switch, but need
+ * real media files — they get fixtures when real scripts do.)
  */
 export const showcaseBible: Bible = {
   schemaVersion: "1",
@@ -59,77 +63,73 @@ export const showcaseBible: Bible = {
   ],
   scenes: [
     {
-      id: "scene-headline",
-      title: "Typed headline",
+      id: "scene-data-story",
+      title: "A headline, its chart, and its caption — composed",
       beats: [
         {
           id: "beat-typewriter",
           narration: "Charts that draw themselves.",
           durationInFrames: 75,
-          visualIntent: "The headline types itself out, centered.",
+          visualIntent: "The headline types itself out, upper third.",
           assetId: "headline",
           recipeName: "typewriter",
-          placement: { x: 0.5, y: 0.5, scale: 1, zIndex: 0 },
+          placement: { x: 0.5, y: 0.18, scale: 0.8, zIndex: 0 },
         },
-      ],
-    },
-    {
-      id: "scene-imagery",
-      title: "Drifting imagery",
-      beats: [
-        {
-          id: "beat-panzoom",
-          narration: "Imagery drifts slowly, alive but unhurried.",
-          durationInFrames: 90,
-          visualIntent: "The mountain image slowly zooms and drifts left.",
-          assetId: "mountains",
-          recipeName: "pan-zoom",
-          placement: { x: 0.5, y: 0.5, scale: 0.55, zIndex: 0 },
-        },
-      ],
-    },
-    {
-      id: "scene-data",
-      title: "Self-drawing chart",
-      beats: [
         {
           id: "beat-drawon",
           narration: "Adoption grew year over year.",
           durationInFrames: 90,
-          visualIntent: "A bar chart draws on, one year at a time.",
+          visualIntent:
+            "While the headline stays put, a bar chart draws on beneath it.",
           assetId: "adoption-chart",
           recipeName: "draw-on",
-          placement: { x: 0.5, y: 0.5, scale: 1.2, zIndex: 0 },
+          placement: { x: 0.5, y: 0.55, scale: 1.05, zIndex: 0 },
+        },
+        {
+          id: "beat-caption",
+          narration: "Deterministic by construction.",
+          durationInFrames: 60,
+          visualIntent:
+            "Headline and chart hold; the tagline slides in as a lower-third.",
+          assetId: "tagline",
+          recipeName: "slide-in",
+          placement: { x: 0.5, y: 0.9, scale: 1, zIndex: 1 },
         },
       ],
     },
     {
-      id: "scene-icon",
-      title: "Icon punctuation",
+      id: "scene-punctuation",
+      title: "Clear the stage, punch in",
       beats: [
         {
           id: "beat-popin",
           narration: "Fast.",
           durationInFrames: 45,
-          visualIntent: "A lightning bolt icon pops in at center.",
+          visualIntent:
+            "Everything fades out; a lightning bolt pops in under a camera push-in.",
           assetId: "bolt",
           recipeName: "pop-in",
           placement: { x: 0.5, y: 0.48, scale: 1, zIndex: 0 },
+          exit: ["headline", "adoption-chart", "tagline"],
+          camera: { zoom: 1.25 },
         },
       ],
     },
     {
-      id: "scene-caption",
-      title: "Closing caption",
+      id: "scene-closing",
+      title: "Closing imagery",
       beats: [
         {
-          id: "beat-caption",
-          narration: "Deterministic by construction.",
-          durationInFrames: 60,
-          visualIntent: "The tagline slides in as a lower-third caption.",
-          assetId: "tagline",
-          recipeName: "slide-in",
-          placement: { x: 0.5, y: 0.85, scale: 1, zIndex: 1 },
+          id: "beat-panzoom",
+          narration: "Imagery drifts slowly, alive but unhurried.",
+          durationInFrames: 90,
+          visualIntent:
+            "The bolt fades away, the camera settles back, and the mountains drift.",
+          assetId: "mountains",
+          recipeName: "pan-zoom",
+          placement: { x: 0.5, y: 0.5, scale: 0.55, zIndex: 0 },
+          exit: ["bolt"],
+          camera: { zoom: 1 },
         },
       ],
     },

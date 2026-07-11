@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { TextAsset } from "../assets";
 import { drawOn } from "./draw-on";
+import { exitFade } from "./exit-fade";
+import { hold } from "./hold";
 import { createDefaultRecipeRegistry } from "./library";
 import { panZoom } from "./pan-zoom";
 import { popIn } from "./pop-in";
@@ -16,7 +18,10 @@ import { typewriter } from "./typewriter";
  * function of its context, defined and finite over its whole domain.
  */
 
-const ALL_RECIPES: Recipe[] = [
+// Entrances settle at full visibility; the continuity recipes (M10) have
+// different end states (hold never moves, exit-fade ends invisible), so
+// they share the purity/finiteness suite but not the "settled" invariant.
+const ENTRANCE_RECIPES: Recipe[] = [
   staticFade,
   slideIn,
   panZoom,
@@ -24,6 +29,8 @@ const ALL_RECIPES: Recipe[] = [
   drawOn,
   popIn,
 ];
+
+const ALL_RECIPES: Recipe[] = [...ENTRANCE_RECIPES, hold, exitFade];
 
 const textAsset: TextAsset = { kind: "text", id: "t", content: "Hello" };
 
@@ -58,14 +65,40 @@ describe("every recipe", () => {
         }
       });
 
-      it("has settled by the last frame of a generous beat", () => {
-        const duration = Math.max(recipe.minDurationInFrames, 90);
-        const end = recipe.sample(ctx(duration - 1, duration));
-        expect(end.opacity).toBe(1);
-        expect(end.reveal ?? 1).toBe(1);
-      });
     });
   }
+});
+
+describe("entrance recipes settle", () => {
+  for (const recipe of ENTRANCE_RECIPES) {
+    it(`${recipe.name} has settled by the last frame of a generous beat`, () => {
+      const duration = Math.max(recipe.minDurationInFrames, 90);
+      const end = recipe.sample(ctx(duration - 1, duration));
+      expect(end.opacity).toBe(1);
+      expect(end.reveal ?? 1).toBe(1);
+    });
+  }
+});
+
+describe("continuity recipes (M10)", () => {
+  it("hold is the identity: neutral props at every frame", () => {
+    for (const frame of [0, 30, 89]) {
+      expect(hold.sample(ctx(frame, 90))).toEqual({
+        opacity: 1,
+        offsetX: 0,
+        offsetY: 0,
+        scale: 1,
+        reveal: 1,
+      });
+    }
+  });
+
+  it("exit-fade starts fully visible and is gone by frame 12, staying gone", () => {
+    expect(exitFade.sample(ctx(0)).opacity).toBe(1);
+    expect(exitFade.sample(ctx(6)).opacity).toBeCloseTo(0.5);
+    expect(exitFade.sample(ctx(12)).opacity).toBe(0);
+    expect(exitFade.sample(ctx(50)).opacity).toBe(0);
+  });
 });
 
 describe("golden values", () => {
@@ -122,6 +155,8 @@ describe("library registry", () => {
       "typewriter",
       "draw-on",
       "pop-in",
+      "hold",
+      "exit-fade",
     ]) {
       expect(registry.has(name)).toBe(true);
     }

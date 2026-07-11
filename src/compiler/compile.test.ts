@@ -64,24 +64,36 @@ describe("value isolation (staff-review issue #1)", () => {
   it("shares no references with the input Bible, stage defaults, or other plans", () => {
     const input = bible();
     const plan = compile(input);
-    const item = plan.items[0];
+    const beat = plan.beats[0];
+    const layer = beat.layers[0];
 
     // Direct proof of no aliasing: these were the actual leaks — the asset
     // was the Bible's own object, the theme was the module constant.
-    expect(item.asset).not.toBe(input.assets[0]);
-    expect(item.theme).not.toBe(DEFAULT_STAGE_THEME);
-    expect(item.placement).not.toBe(input.scenes[0].beats[0].placement);
+    expect(layer.asset).not.toBe(input.assets[0]);
+    expect(beat.theme).not.toBe(DEFAULT_STAGE_THEME);
+    expect(layer.placement).not.toBe(input.scenes[0].beats[0].placement);
 
     // Two compilations share nothing with each other either.
     const other = compile(input);
-    expect(other.items[0].asset).not.toBe(item.asset);
-    expect(other.items[0].theme).not.toBe(item.theme);
+    expect(other.beats[0].layers[0].asset).not.toBe(layer.asset);
+    expect(other.beats[0].theme).not.toBe(beat.theme);
   });
 
   it("is deeply frozen: every object in the plan rejects mutation", () => {
     const plan = compile(bible());
-    const item = plan.items[0];
-    for (const obj of [plan, plan.items, item, item.asset, item.placement, item.theme]) {
+    const beat = plan.beats[0];
+    const layer = beat.layers[0];
+    for (const obj of [
+      plan,
+      plan.beats,
+      beat,
+      beat.camera,
+      beat.theme,
+      beat.layers,
+      layer,
+      layer.asset,
+      layer.placement,
+    ]) {
       expect(Object.isFrozen(obj)).toBe(true);
     }
   });
@@ -91,17 +103,17 @@ describe("value isolation (staff-review issue #1)", () => {
     const inputSnapshot = structuredClone(input);
     const themeSnapshot = structuredClone(DEFAULT_STAGE_THEME);
     const plan = compile(input);
-    const item = plan.items[0];
+    const beat = plan.beats[0];
 
     // Frozen objects throw on write in strict mode (ESM is always strict).
     expect(() => {
-      (item.theme as { backgroundColor: string }).backgroundColor = "#ff0000";
+      (beat.theme as { backgroundColor: string }).backgroundColor = "#ff0000";
     }).toThrow(TypeError);
     expect(() => {
-      (item.asset as { id: string }).id = "hijacked";
+      (beat.layers[0].asset as { id: string }).id = "hijacked";
     }).toThrow(TypeError);
     expect(() => {
-      (plan.items as unknown[]).push("junk");
+      (plan.beats as unknown[]).push("junk");
     }).toThrow(TypeError);
 
     // And regardless of the throws, nothing upstream moved.
@@ -110,22 +122,33 @@ describe("value isolation (staff-review issue #1)", () => {
   });
 });
 
-describe("compilation output (M5)", () => {
+describe("compilation output (M5, reshaped at M10)", () => {
   it("compiles the demo Bible into the expected plan shape", () => {
     const plan = compile(bible());
     expect(plan.fps).toBe(30);
     expect(plan.width).toBe(1280);
     expect(plan.height).toBe(720);
     expect(plan.totalDurationInFrames).toBe(90);
-    expect(plan.items).toHaveLength(1);
+    expect(plan.beats).toHaveLength(1);
 
-    const item = plan.items[0];
-    expect(item.id).toBe("scene-opening/beat-hello");
-    expect(item.startFrame).toBe(0);
-    expect(item.durationInFrames).toBe(90);
-    expect(item.recipeName).toBe("static-fade");
-    expect(item.asset.id).toBe("headline");
-    expect(item.placement).toEqual({
+    const beat = plan.beats[0];
+    expect(beat.id).toBe("scene-opening/beat-hello");
+    expect(beat.startFrame).toBe(0);
+    expect(beat.durationInFrames).toBe(90);
+    // Default carried state: centered camera, default theme.
+    expect(beat.camera).toEqual({ x: 0.5, y: 0.5, zoom: 1 });
+    expect(beat.theme).toEqual({
+      backgroundColor: "#111111",
+      foregroundColor: "#ffffff",
+    });
+
+    expect(beat.layers).toHaveLength(1);
+    const layer = beat.layers[0];
+    expect(layer.entityId).toBe("headline");
+    expect(layer.role).toBe("enter");
+    expect(layer.recipeName).toBe("static-fade");
+    expect(layer.asset.id).toBe("headline");
+    expect(layer.placement).toEqual({
       assetId: "headline",
       x: 0.5,
       y: 0.5,
@@ -145,7 +168,7 @@ describe("compilation output (M5)", () => {
         });
       }),
     );
-    expect(plan.items.map((i) => i.startFrame)).toEqual([0, 90]);
+    expect(plan.beats.map((w) => w.startFrame)).toEqual([0, 90]);
     expect(plan.totalDurationInFrames).toBe(135);
   });
 });
