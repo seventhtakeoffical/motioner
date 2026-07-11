@@ -20,18 +20,29 @@ import { typewriter } from "./typewriter";
  * recipes by these strings, so a rename would orphan it. Deprecate by
  * adding a successor name, never by renaming.
  */
+/**
+ * The canonical set as a list, in registration order. Exists so tooling —
+ * e.g. the M12 authoring tool, which builds its prompt from the live
+ * library — can enumerate recipes without a parallel list that could
+ * drift. The last two are the continuity recipes (M10), emitted by the
+ * compiler for held and exiting stage entities; ordinary recipes on
+ * purpose — same contract, same validation, same sampling path.
+ */
+export const defaultRecipes = [
+  staticFade,
+  slideIn,
+  panZoom,
+  typewriter,
+  drawOn,
+  popIn,
+  hold,
+  exitFade,
+] as const;
+
 export function createDefaultRecipeRegistry(): RecipeRegistry {
   const registry = createRecipeRegistry();
-  registry.register(staticFade);
-  registry.register(slideIn);
-  registry.register(panZoom);
-  registry.register(typewriter);
-  registry.register(drawOn);
-  registry.register(popIn);
-  // Continuity recipes (M10): emitted by the compiler for held and exiting
-  // stage entities. Ordinary recipes on purpose — same contract, same
-  // validation, same sampling path.
-  registry.register(hold);
-  registry.register(exitFade);
+  for (const recipe of defaultRecipes) {
+    registry.register(recipe);
+  }
   return registry;
 }

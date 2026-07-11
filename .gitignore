@@ -5,3 +5,6 @@ dist
 
 # Ignore the output video from Git but not videos you import into src/.
 out
+
+# Unreviewed LLM-drafted Bibles (M12 author output) — drafts don't belong in git
+drafts

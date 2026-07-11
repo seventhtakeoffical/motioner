@@ -151,6 +151,12 @@ const ASSET_CAPABILITIES: Record<AssetKind, readonly Capability[]> = {
   caption: ["textual", "colorable", "revealable"],
 };
 
+// The complete kind vocabulary as a value (the union type erases at
+// runtime). Exists so tooling — e.g. the M12 authoring tool, which builds
+// its prompt from the live vocabulary — can enumerate kinds without
+// maintaining a parallel list that could drift.
+export const ASSET_KINDS = Object.keys(ASSET_CAPABILITIES) as AssetKind[];
+
 export function getCapabilities(kind: AssetKind): readonly Capability[] {
   return ASSET_CAPABILITIES[kind];
 }
