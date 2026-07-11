@@ -19,6 +19,7 @@
   "exclude": [
     "remotion.config.ts",
     "author",
-    "review"
+    "review",
+    "pipeline"
   ]
 }

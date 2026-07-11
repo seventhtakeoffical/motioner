@@ -229,8 +229,8 @@ function parseArgs(argv: string[]) {
   return args;
 }
 
-async function main() {
-  const args = parseArgs(process.argv.slice(2));
+export async function runAuthor(argv: string[]) {
+  const args = parseArgs(argv);
   if (!args.script) {
     console.error(
       "Usage: npm run author -- <script-file> [--id <id>] [--title <title>] [--out <dir>] [--dry-run]",
@@ -289,7 +289,9 @@ async function main() {
 └─────────────────────────────────────────────────────────────────┘`);
 }
 
-main().catch((error) => {
-  console.error(error instanceof Error ? error.message : error);
-  process.exit(1);
-});
+if (require.main === module) {
+  runAuthor(process.argv.slice(2)).catch((error) => {
+    console.error(error instanceof Error ? error.message : error);
+    process.exit(1);
+  });
+}

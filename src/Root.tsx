@@ -1,49 +1,40 @@
 import React from "react";
-import { Composition } from "remotion";
-import { demoApproval, demoBible } from "./bible/demo";
-import { showcaseApproval, showcaseBible } from "./bible/showcase";
-import { compileApprovedBible } from "./compiler";
-import { createDefaultRecipeRegistry } from "./recipes";
+import { Composition, type CalculateMetadataFunction } from "remotion";
+import type { RenderPlan } from "./render-plan";
 import { RenderPlanVideo } from "./renderer";
+import { placeholderPlan } from "./renderer/placeholder";
 
-// The whole deterministic pipeline runs here, once, at module load: Bible
-// in, Render Plan out — through the M7 gate, so even the dev preview
-// exercises the real trust boundary (schema parse + approval hash check).
-// Each composition's duration/fps/dimensions are read off its plan — the
-// Bible decided them; Remotion just gets told.
-const demoPlan = compileApprovedBible(
-  demoBible,
-  demoApproval,
-  createDefaultRecipeRegistry(),
-);
-
-const showcasePlan = compileApprovedBible(
-  showcaseBible,
-  showcaseApproval,
-  createDefaultRecipeRegistry(),
-);
+/**
+ * The Remotion root (as of M14): ONE composition, fed exclusively by input
+ * props. Nothing compiles here — no Bibles, no fixtures, no compiler in the
+ * render bundle. The pipeline CLI compiles an approved Bible into a Render
+ * Plan and passes it via --props for both Studio preview and headless
+ * rendering, so there is exactly one rendering path. Without props, the
+ * placeholder plan renders instructions.
+ *
+ * All timing/dimension metadata is read off the supplied plan — the Bible
+ * decided it, the compiler resolved it, Remotion just gets told.
+ */
+const calculateMetadata: CalculateMetadataFunction<{ plan: RenderPlan }> = ({
+  props,
+}) => ({
+  durationInFrames: props.plan.totalDurationInFrames,
+  fps: props.plan.fps,
+  width: props.plan.width,
+  height: props.plan.height,
+});
 
 export const RemotionRoot: React.FC = () => {
   return (
-    <>
-      <Composition
-        id="DemoExplainer"
-        component={RenderPlanVideo}
-        durationInFrames={demoPlan.totalDurationInFrames}
-        fps={demoPlan.fps}
-        width={demoPlan.width}
-        height={demoPlan.height}
-        defaultProps={{ plan: demoPlan }}
-      />
-      <Composition
-        id="Showcase"
-        component={RenderPlanVideo}
-        durationInFrames={showcasePlan.totalDurationInFrames}
-        fps={showcasePlan.fps}
-        width={showcasePlan.width}
-        height={showcasePlan.height}
-        defaultProps={{ plan: showcasePlan }}
-      />
-    </>
+    <Composition
+      id="PipelineVideo"
+      component={RenderPlanVideo}
+      durationInFrames={placeholderPlan.totalDurationInFrames}
+      fps={placeholderPlan.fps}
+      width={placeholderPlan.width}
+      height={placeholderPlan.height}
+      defaultProps={{ plan: placeholderPlan }}
+      calculateMetadata={calculateMetadata}
+    />
   );
 };

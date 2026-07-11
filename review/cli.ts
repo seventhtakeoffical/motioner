@@ -54,8 +54,8 @@ function usage(): never {
   process.exit(2);
 }
 
-async function main() {
-  const args = parseArgs(process.argv.slice(2));
+export async function runReviewCli(argv: string[]) {
+  const args = parseArgs(argv);
   if (!args.file) usage();
   const scriptText = args.script
     ? fs.readFileSync(args.script, "utf8")
@@ -123,7 +123,9 @@ async function main() {
   usage();
 }
 
-main().catch((error) => {
-  console.error(error instanceof Error ? error.message : error);
-  process.exit(1);
-});
+if (require.main === module) {
+  runReviewCli(process.argv.slice(2)).catch((error) => {
+    console.error(error instanceof Error ? error.message : error);
+    process.exit(1);
+  });
+}

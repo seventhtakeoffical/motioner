@@ -1,54 +1,99 @@
-# Remotion video
+# Motioner — a deterministic AI-powered explainer video compiler
 
-<p align="center">
-  <a href="https://github.com/remotion-dev/logo">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://github.com/remotion-dev/logo/raw/main/animated-logo-banner-dark.apng">
-      <img alt="Animated Remotion Logo" src="https://github.com/remotion-dev/logo/raw/main/animated-logo-banner-light.gif">
-    </picture>
-  </a>
-</p>
+Scripts become videos through a pipeline with exactly one non-deterministic
+step, and it runs first:
 
-Welcome to your Remotion project!
-
-## Commands
-
-**Install Dependencies**
-
-```console
-npm i
+```
+script ──▶ Claude Author ──▶ DRAFT Bible ──▶ human review ──▶ approval
+ (LLM, the only              (JSON,           (report +        (content-
+  non-deterministic           refused by       explicit         hashed
+  component)                  the renderer)    confirmation)    record)
+                                                                   │
+                approved Bible + approval ──▶ deterministic compiler
+                                                (pure TypeScript)  │
+                                                                   ▼
+                          Remotion renderer ◀── Render Plan (typed IR)
 ```
 
-**Start Preview**
+**The Production Bible is the only source of truth.** Once a Bible is
+approved, everything downstream is a pure function of it: the same Bible
+compiles to a byte-identical Render Plan, forever, on any machine, with no
+API key present. No LLM runs in the compiler or renderer.
+
+## The production workflow
 
 ```console
-npm run dev
+# 1. Draft a Bible from a script (requires ANTHROPIC_API_KEY or `ant auth login`)
+npm run pipeline -- author script.txt --id my-video --title "My Video"
+
+# 2. Review the draft: validation, warnings, assumptions, runtime,
+#    scene breakdown, continuity, approval status
+npm run pipeline -- review drafts/my-video.bible.json --script script.txt
+
+# 3. Approve it (interactive confirmation; writes the approved pair)
+npm run pipeline -- approve drafts/my-video.bible.json --by "Your Name"
+
+# 4. Preview in Remotion Studio, or render headlessly
+npm run pipeline -- preview approved/my-video.bible.json approved/my-video.approval.json
+npm run pipeline -- render  approved/my-video.bible.json approved/my-video.approval.json
 ```
 
-**Render video**
+Rules the tooling enforces (not just documents):
+
+- **Only approved Bibles render.** `render` and `preview` both start at
+  `compileApprovedBible`, which demands an approval record whose content
+  hash matches the exact Bible bytes. Drafts have no approval; drafts
+  cannot render.
+- **Approved artifacts are never edited.** Any edit — one character —
+  invalidates the approval hash and rendering refuses. Changes flow
+  through a new draft, a new review, and a new approval.
+- **Drafts are disposable** (`drafts/` is gitignored); **approved pairs
+  are production inputs** (`approved/` belongs in git).
+
+## Project layout
+
+| Directory | Contents | Deterministic? |
+|---|---|---|
+| `src/bible` | Bible schema (Zod), validation, approval hashing | ✅ pure |
+| `src/assets` | Asset kinds + capability vocabulary | ✅ pure |
+| `src/recipes` | Choreography recipes (pure frame functions) | ✅ pure |
+| `src/stage` | Cross-beat continuity state model | ✅ pure |
+| `src/compiler` | Bible → Render Plan, incl. the M7 approval gate | ✅ pure |
+| `src/render-plan` | The typed IR between compiler and renderer | ✅ pure |
+| `src/renderer` | The ONLY module that knows Remotion exists | interprets only |
+| `author/` | The Claude Author (drafting tool) | ❌ the one LLM step |
+| `review/` | Review report + approval workflow | report core is pure |
+| `pipeline/` | The orchestrating CLI (`npm run pipeline`) | owns fs/process |
+
+ESLint fences the deterministic modules: `Math.random`, wall-clock time,
+I/O imports, and Remotion itself are banned there and enforced in CI
+(`npm run lint`). Determinism is also tested — the compiler suite asserts
+byte-identical plans across repeated runs (`npm test`).
+
+## Development commands
 
 ```console
-npx remotion render
+npm run dev        # Remotion Studio (placeholder plan until you pass one)
+npm test           # full test suite, including end-to-end workflow tests
+npm run lint       # eslint + type-check of all four projects
+npm run author     # the author CLI directly (same as pipeline -- author)
+npm run review     # the review CLI directly (report | approve)
 ```
 
-**Upgrade Remotion**
-
-```console
-npx remotion upgrade
-```
+Studio and headless rendering share one path: a single `PipelineVideo`
+composition renders whatever `RenderPlan` arrives as input props
+(`calculateMetadata` reads duration/fps/size off the plan). The pipeline
+CLI compiles the approved pair and passes the plan via `--props` to either
+`remotion studio` or `remotion render`. Nothing is compiled inside the
+bundle.
 
 ## Docs
 
-Get started with Remotion by reading the [fundamentals page](https://www.remotion.dev/docs/the-fundamentals).
-
-## Help
-
-We provide help on our [Discord server](https://discord.gg/6VzzNDwUwV).
-
-## Issues
-
-Found an issue with Remotion? [File an issue here](https://github.com/remotion-dev/remotion/issues/new).
+- `BUILD_PLAN.md` — the milestone roadmap this project was built against.
+- `author/README.md` — the drafting tool, its prompts, and its rules.
+- Remotion fundamentals: https://www.remotion.dev/docs/the-fundamentals
 
 ## License
 
-Note that for some entities a company license is needed. [Read the terms here](https://github.com/remotion-dev/remotion/blob/main/LICENSE.md).
+The Remotion framework requires a company license for some entities.
+[Read the terms](https://github.com/remotion-dev/remotion/blob/main/LICENSE.md).
