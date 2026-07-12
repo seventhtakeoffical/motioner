@@ -16,8 +16,9 @@
  */
 
 import { runAuthor } from "../author/author";
+import { runGenerate } from "../generate/cli";
 import { runReviewCli } from "../review/cli";
-import { previewInStudio, renderVideo } from "./run";
+import { previewDraftInStudio, previewInStudio, renderVideo } from "./run";
 
 const USAGE = `The production pipeline:
 
@@ -35,13 +36,24 @@ Usage:
       Review + explicit confirmation, then write the approved pair to
       approved/. This is the only way an approval comes into being.
 
+  npm run pipeline -- generate <bible.json> [--draft] [--provider <name>] [--force]
+      Satisfy the Bible's Asset Requests: generate every image with a
+      generationBrief into public/generated/<id>/ via an asset provider
+      (nano-banana, gpt-image, ...). Approved pair auto-detected; --draft
+      acknowledges generating from an unapproved draft. Never modifies the
+      Bible. Generated files are production inputs — commit them.
+
   npm run pipeline -- render <bible.json> <approval.json> [--out <file.mp4>]
                      [--frames <a-b>]
       Compile the approved pair through the gate and render headlessly.
 
   npm run pipeline -- preview <bible.json> <approval.json>
       Compile the approved pair through the gate and open Remotion Studio
-      on the resulting plan.`;
+      on the resulting plan.
+
+  npm run pipeline -- preview --draft <draft.bible.json>
+      Sighted review: preview an UNAPPROVED draft in Studio with a burned-in
+      DRAFT watermark. Preview only — rendering still requires approval.`;
 
 function parseRenderArgs(argv: string[]) {
   const args: { positional: string[]; out?: string; frames?: string } = {
@@ -72,6 +84,10 @@ async function main() {
       await runReviewCli(["approve", ...rest]);
       return;
 
+    case "generate":
+      await runGenerate(rest);
+      return;
+
     case "render": {
       const args = parseRenderArgs(rest);
       const [biblePath, approvalPath] = args.positional;
@@ -92,10 +108,22 @@ async function main() {
     }
 
     case "preview": {
+      if (rest[0] === "--draft") {
+        const draftPath = rest[1];
+        if (!draftPath) {
+          console.error(
+            "draft preview needs a file: pipeline preview --draft <draft.bible.json>",
+          );
+          process.exit(2);
+        }
+        previewDraftInStudio(draftPath);
+        return;
+      }
       const [biblePath, approvalPath] = rest;
       if (!biblePath || !approvalPath) {
         console.error(
-          "preview needs both files: pipeline preview <bible.json> <approval.json>",
+          "preview needs both files: pipeline preview <bible.json> <approval.json>\n" +
+            "(or preview an unapproved draft: pipeline preview --draft <draft.bible.json>)",
         );
         process.exit(2);
       }

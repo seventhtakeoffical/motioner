@@ -20,6 +20,7 @@
     "remotion.config.ts",
     "author",
     "review",
-    "pipeline"
+    "pipeline",
+    "generate"
   ]
 }

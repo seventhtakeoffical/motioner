@@ -49,6 +49,29 @@ is 60–120 frames.
   a scene boundary — the compiler will fade out the old set automatically
   during your new scene's first beat.
 
+## Show the metaphor — don't caption it
+
+The weakest draft is a wall of text cards paraphrasing the narration the
+viewer is already hearing. Production feedback is explicit on this:
+
+- **Every scene should have a visual anchor that is not text** — an icon,
+  a chart, or a requested image. Reach for a text asset only for the
+  punchline the viewer should read (a key term, a number, the takeaway),
+  not for restating narration.
+- When the script describes something concrete (a place, an object, a
+  process), prefer an **Asset Request**: declare an image with a
+  `generationBrief` that an image generator could execute verbatim —
+  subject, composition, camera angle, style, mood, and "no text in the
+  image". One strong requested image beats three text cards.
+- **Cap typed on-screen copy at ~8 words.** Long typewriter passages force
+  the viewer to read and listen simultaneously; if the line matters that
+  much, let the narration carry it and show a shorter fragment.
+- Match motion to the words: a thing that "drops" enters with
+  `slide-in` + `{"direction": "top"}`; a thing that is "ripped out" or
+  "thrown away" exits via `exitRecipeName: "exit-slide"` with a fitting
+  direction. When narration names a motion, the choreography should
+  perform it.
+
 ## Choosing recipes
 
 Match the recipe to the asset's role in the story (the generated vocabulary

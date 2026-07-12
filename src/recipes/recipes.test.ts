@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { TextAsset } from "../assets";
 import { drawOn } from "./draw-on";
 import { exitFade } from "./exit-fade";
+import { exitSlide } from "./exit-slide";
 import { hold } from "./hold";
 import { createDefaultRecipeRegistry } from "./library";
 import { panZoom } from "./pan-zoom";
@@ -30,7 +31,7 @@ const ENTRANCE_RECIPES: Recipe[] = [
   popIn,
 ];
 
-const ALL_RECIPES: Recipe[] = [...ENTRANCE_RECIPES, hold, exitFade];
+const ALL_RECIPES: Recipe[] = [...ENTRANCE_RECIPES, hold, exitFade, exitSlide];
 
 const textAsset: TextAsset = { kind: "text", id: "t", content: "Hello" };
 
@@ -101,6 +102,48 @@ describe("continuity recipes (M10)", () => {
   });
 });
 
+describe("recipe parameters (M15)", () => {
+  it("slide-in honors direction and defaults to left", () => {
+    const base = ctx(0);
+    // Default (no params) and explicit left agree: comes from the left.
+    expect(slideIn.sample(base).offsetX).toBeCloseTo(-0.12);
+    expect(slideIn.sample(base).offsetY).toBe(0);
+    const top = slideIn.sample({ ...base, params: { direction: "top" } });
+    expect(top.offsetX).toBe(0);
+    expect(top.offsetY).toBeCloseTo(-0.12);
+    const bottom = slideIn.sample({ ...base, params: { direction: "bottom" } });
+    expect(bottom.offsetY).toBeCloseTo(0.12);
+    // Every direction lands exactly on the placement.
+    for (const direction of ["left", "right", "top", "bottom"]) {
+      const end = slideIn.sample({ ...ctx(18), params: { direction } });
+      expect(end.offsetX).toBeCloseTo(0);
+      expect(end.offsetY).toBeCloseTo(0);
+    }
+  });
+
+  it("exit-slide moves out toward its direction while fading, then stays gone", () => {
+    const start = exitSlide.sample({ ...ctx(0), params: { direction: "top" } });
+    expect(start.opacity).toBe(1);
+    expect(start.offsetY).toBeCloseTo(0);
+    const mid = exitSlide.sample({ ...ctx(6), params: { direction: "top" } });
+    expect(mid.opacity).toBeCloseTo(0.5);
+    expect(mid.offsetY).toBeLessThan(0); // moving up and out
+    const end = exitSlide.sample({ ...ctx(12), params: { direction: "top" } });
+    expect(end.opacity).toBe(0);
+    expect(exitSlide.sample({ ...ctx(50), params: { direction: "top" } }).opacity).toBe(0);
+  });
+
+  it("declared param specs carry defaults inside their own values", () => {
+    for (const recipe of [slideIn, exitSlide]) {
+      const spec = recipe.params?.direction;
+      expect(spec?.kind).toBe("enum");
+      if (spec?.kind === "enum") {
+        expect(spec.values).toContain(spec.default);
+      }
+    }
+  });
+});
+
 describe("golden values", () => {
   it("static-fade: invisible at frame 0, fully visible after 15", () => {
     expect(staticFade.sample(ctx(0)).opacity).toBe(0);
@@ -157,6 +200,7 @@ describe("library registry", () => {
       "pop-in",
       "hold",
       "exit-fade",
+      "exit-slide",
     ]) {
       expect(registry.has(name)).toBe(true);
     }

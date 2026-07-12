@@ -123,6 +123,36 @@ describe("exits", () => {
     ).toThrow(/listed in exit more than once/);
   });
 
+  it("plays authored exits with the beat's exitRecipeName and params (M15)", () => {
+    const plan = compile(
+      multiBeatBible({
+        exit: ["headline"],
+        exitRecipeName: "exit-slide",
+        exitRecipeParams: { direction: "top" },
+      }),
+    );
+    const exitLayer = plan.beats[1].layers.find((l) => l.role === "exit");
+    expect(exitLayer?.recipeName).toBe("exit-slide");
+    expect(exitLayer?.params).toEqual({ direction: "top" });
+    // The default remains exit-fade with no params.
+    const defaulted = compile(multiBeatBible({ exit: ["headline"] }));
+    const defaultExit = defaulted.beats[1].layers.find((l) => l.role === "exit");
+    expect(defaultExit?.recipeName).toBe("exit-fade");
+    expect(defaultExit?.params).toEqual({});
+  });
+
+  it("rejects an unknown exitRecipeName and exit styling on beats with no exits", () => {
+    expect(() =>
+      compile(
+        multiBeatBible({ exit: ["headline"], exitRecipeName: "vanish" }),
+      ),
+    ).toThrow(/recipe "vanish" is not in the registry/);
+
+    expect(() =>
+      compile(multiBeatBible({ exitRecipeName: "exit-slide" })),
+    ).toThrow(/emits no exits/);
+  });
+
   it("rejects a beat too short for the exit transition", () => {
     // Featured recipe is "hold" (min 1 frame) so the exit-duration check
     // is what fires, not the featured recipe's own minimum.

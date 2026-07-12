@@ -15,9 +15,10 @@ import { placeholderPlan } from "./renderer/placeholder";
  * All timing/dimension metadata is read off the supplied plan — the Bible
  * decided it, the compiler resolved it, Remotion just gets told.
  */
-const calculateMetadata: CalculateMetadataFunction<{ plan: RenderPlan }> = ({
-  props,
-}) => ({
+const calculateMetadata: CalculateMetadataFunction<{
+  plan: RenderPlan;
+  draft?: boolean;
+}> = ({ props }) => ({
   durationInFrames: props.plan.totalDurationInFrames,
   fps: props.plan.fps,
   width: props.plan.width,
@@ -33,7 +34,7 @@ export const RemotionRoot: React.FC = () => {
       fps={placeholderPlan.fps}
       width={placeholderPlan.width}
       height={placeholderPlan.height}
-      defaultProps={{ plan: placeholderPlan }}
+      defaultProps={{ plan: placeholderPlan, draft: false }}
       calculateMetadata={calculateMetadata}
     />
   );

@@ -47,14 +47,20 @@ function prompt(name: string): string {
 }
 
 function vocabularySection(): string {
-  const recipeRows = defaultRecipes.map(
-    (r) =>
-      `| \`${r.name}\` | ${
-        r.requiredCapabilities.length > 0
-          ? r.requiredCapabilities.map((c) => `\`${c}\``).join(", ")
-          : "none"
-      } | ${r.minDurationInFrames} |`,
-  );
+  const recipeRows = defaultRecipes.map((r) => {
+    const params = Object.entries(r.params ?? {})
+      .map(([name, spec]) =>
+        spec.kind === "enum"
+          ? `\`${name}\`: ${spec.values.join("\\|")} (default ${spec.default}) — ${spec.description}`
+          : `\`${name}\`: number ${spec.min}–${spec.max} (default ${spec.default}) — ${spec.description}`,
+      )
+      .join("; ");
+    return `| \`${r.name}\` | ${
+      r.requiredCapabilities.length > 0
+        ? r.requiredCapabilities.map((c) => `\`${c}\``).join(", ")
+        : "none"
+    } | ${r.minDurationInFrames} | ${params || "—"} |`;
+  });
   const kindRows = ASSET_KINDS.map(
     (kind) =>
       `| \`${kind}\` | ${getCapabilities(kind)
@@ -68,10 +74,12 @@ function vocabularySection(): string {
     "",
     "A recipe may only be bound to an asset whose capabilities include every",
     "capability the recipe requires. The beat's duration must be at least the",
-    "recipe's minimum.",
+    "recipe's minimum. Parameters go in the beat's `recipeParams` (or",
+    "`exitRecipeParams` for the exit recipe) — only the listed names/values",
+    "are legal; omitted parameters use their defaults.",
     "",
-    "| Recipe | Requires capabilities | Min frames |",
-    "|---|---|---|",
+    "| Recipe | Requires capabilities | Min frames | Parameters |",
+    "|---|---|---|---|",
     ...recipeRows,
     "",
     "## Asset kinds and their capabilities",
@@ -101,7 +109,29 @@ function exampleSection(): string {
   ].join("\n");
 }
 
-function taskSection(script: string, id: string, title: string): string {
+function taskSection(
+  script: string,
+  id: string,
+  title: string,
+  mediaFiles: readonly string[],
+): string {
+  const mediaBlock =
+    mediaFiles.length > 0
+      ? [
+          "The following media files exist and are the ONLY existing files an",
+          "image/video/audio asset may reference by src:",
+          "",
+          ...mediaFiles.map((f) => `- ${f}`),
+          "",
+          "Additionally, you may REQUEST new images (see the schema guide's",
+          `generationBrief) with src paths under \`generated/${id}/\`.`,
+        ]
+      : [
+          "No media files exist yet. You may still declare image assets by",
+          "REQUESTING them: give each a generationBrief (the generation spec)",
+          `and a src path under \`generated/${id}/\` — see the schema guide.`,
+          "Video and audio assets are unavailable for this video.",
+        ];
   return [
     "# Your task",
     "",
@@ -110,8 +140,7 @@ function taskSection(script: string, id: string, title: string): string {
     `- title: ${JSON.stringify(title)}`,
     `- createdAt: ${JSON.stringify(new Date().toISOString())}`,
     "",
-    "No image, video, or audio files are available for this video — use only",
-    "self-contained asset kinds (text, caption, chart, icon).",
+    ...mediaBlock,
     "",
     "## Script",
     "",
@@ -141,7 +170,39 @@ function extractJson(text: string): string {
   return text.slice(start, end + 1);
 }
 
-async function draftBible(userPrompt: string): Promise<Bible> {
+/**
+ * The media rule, mechanically enforced (M15): every media src must either
+ * be a file the task listed as existing, or — images only — carry a
+ * generationBrief making it an explicit Asset Request. Anything else is an
+ * invented file reference, and the repair loop bounces it.
+ */
+function lintMediaSrcs(bible: Bible, mediaFiles: readonly string[]): string | null {
+  const problems: string[] = [];
+  for (const asset of bible.assets) {
+    if (asset.kind === "image") {
+      if (!mediaFiles.includes(asset.src) && !asset.generationBrief) {
+        problems.push(
+          `image "${asset.id}" references "${asset.src}", which does not exist ` +
+            `and has no generationBrief — either use a listed media file or ` +
+            `turn this into an Asset Request by adding a generationBrief.`,
+        );
+      }
+    } else if (asset.kind === "video" || asset.kind === "audio") {
+      if (!mediaFiles.includes(asset.src)) {
+        problems.push(
+          `${asset.kind} "${asset.id}" references "${asset.src}", which is not ` +
+            `among the available media files. Only listed files may be used.`,
+        );
+      }
+    }
+  }
+  return problems.length > 0 ? problems.join("\n") : null;
+}
+
+async function draftBible(
+  userPrompt: string,
+  mediaFiles: readonly string[],
+): Promise<Bible> {
   const client = new Anthropic();
   const system = prompt("system.md");
   const messages: Anthropic.MessageParam[] = [
@@ -178,6 +239,8 @@ async function draftBible(userPrompt: string): Promise<Bible> {
       // continuity, and scene-grammar errors surface here, before any
       // human spends review time on the draft.
       compileBible(bible, createDefaultRecipeRegistry());
+      const mediaProblem = lintMediaSrcs(bible, mediaFiles);
+      if (mediaProblem) throw new Error(mediaProblem);
       return bible;
     } catch (error) {
       problem = error instanceof Error ? error.message : String(error);
@@ -205,6 +268,23 @@ async function draftBible(userPrompt: string): Promise<Bible> {
 // CLI
 // ---------------------------------------------------------------------------
 
+/** Recursively list files under a media directory (relative POSIX paths). */
+function listMediaFiles(dir: string): string[] {
+  if (!fs.existsSync(dir)) {
+    throw new Error(`--media directory "${dir}" does not exist.`);
+  }
+  const files: string[] = [];
+  const walk = (current: string, prefix: string) => {
+    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+      const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) walk(path.join(current, entry.name), rel);
+      else files.push(rel);
+    }
+  };
+  walk(dir, "");
+  return files.sort();
+}
+
 function slugify(text: string): string {
   return (
     text
@@ -215,13 +295,21 @@ function slugify(text: string): string {
 }
 
 function parseArgs(argv: string[]) {
-  const args = { script: "", id: "", title: "", out: "drafts", dryRun: false };
+  const args = {
+    script: "",
+    id: "",
+    title: "",
+    out: "drafts",
+    media: "",
+    dryRun: false,
+  };
   const rest: string[] = [];
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === "--id") args.id = argv[++i] ?? "";
     else if (arg === "--title") args.title = argv[++i] ?? "";
     else if (arg === "--out") args.out = argv[++i] ?? "drafts";
+    else if (arg === "--media") args.media = argv[++i] ?? "";
     else if (arg === "--dry-run") args.dryRun = true;
     else rest.push(arg);
   }
@@ -233,7 +321,7 @@ export async function runAuthor(argv: string[]) {
   const args = parseArgs(argv);
   if (!args.script) {
     console.error(
-      "Usage: npm run author -- <script-file> [--id <id>] [--title <title>] [--out <dir>] [--dry-run]",
+      "Usage: npm run author -- <script-file> [--id <id>] [--title <title>] [--out <dir>] [--media <dir>] [--dry-run]",
     );
     process.exit(2);
   }
@@ -242,13 +330,14 @@ export async function runAuthor(argv: string[]) {
   const baseName = path.basename(args.script).replace(/\.[^.]*$/, "");
   const id = args.id || slugify(baseName);
   const title = args.title || baseName;
+  const mediaFiles = args.media ? listMediaFiles(args.media) : [];
 
   const userPrompt = [
     prompt("bible-schema.md"),
     prompt("authoring-guide.md"),
     vocabularySection(),
     exampleSection(),
-    taskSection(script, id, title),
+    taskSection(script, id, title, mediaFiles),
   ].join("\n\n---\n\n");
 
   if (args.dryRun) {
@@ -258,7 +347,7 @@ export async function runAuthor(argv: string[]) {
     return;
   }
 
-  const bible = await draftBible(userPrompt);
+  const bible = await draftBible(userPrompt, mediaFiles);
 
   fs.mkdirSync(args.out, { recursive: true });
   const outPath = path.join(args.out, `${bible.id}.bible.json`);

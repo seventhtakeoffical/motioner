@@ -86,6 +86,45 @@ describe("review report — warnings and missing info", () => {
     const report = buildReviewReport({ bible: draft() });
     expect(report.missingInfo.join("\n")).toMatch(/sample-image\.svg/);
   });
+
+  it("checks media against supplied filesystem facts (M15)", () => {
+    // Present on disk → no missing-info entry.
+    const present = buildReviewReport({
+      bible: draft(),
+      existingMedia: ["sample-image.svg"],
+    });
+    expect(present.missingInfo).toEqual([]);
+    // Absent → an explicit NOT-on-disk entry.
+    const absent = buildReviewReport({ bible: draft(), existingMedia: [] });
+    expect(absent.missingInfo.join("\n")).toMatch(/NOT on disk.*sample-image\.svg/);
+  });
+});
+
+describe("asset requests (M15)", () => {
+  it("lists requested images with their briefs, and flags them as to-generate", () => {
+    const report = buildReviewReport({
+      bible: draft((b) =>
+        b.assets.push({
+          kind: "image",
+          id: "library-shelf",
+          src: "generated/showcase/library-shelf.png",
+          intrinsicWidth: 1536,
+          intrinsicHeight: 1024,
+          generationBrief:
+            "Warm flat illustration of a tall library shelf, one book glowing.",
+        }),
+      ),
+      existingMedia: ["sample-image.svg"],
+    });
+    expect(report.assetRequests.join("\n")).toMatch(
+      /"library-shelf".*generated\/showcase\/library-shelf\.png.*1536x1024.*one book glowing/,
+    );
+    expect(report.missingInfo.join("\n")).toMatch(
+      /NOT on disk.*library-shelf.*requested asset; generate it/,
+    );
+    // Warned as unused too (nothing features it) — that's correct and separate.
+    expect(renderReport(report)).toContain("Asset requests (to be generated)");
+  });
 });
 
 describe("review report — observable assumptions", () => {

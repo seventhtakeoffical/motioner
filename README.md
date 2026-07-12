@@ -26,9 +26,20 @@ API key present. No LLM runs in the compiler or renderer.
 # 1. Draft a Bible from a script (requires ANTHROPIC_API_KEY or `ant auth login`)
 npm run pipeline -- author script.txt --id my-video --title "My Video"
 
-# 2. Review the draft: validation, warnings, assumptions, runtime,
-#    scene breakdown, continuity, approval status
+# 2. Review the draft: validation, warnings, assumptions, asset requests,
+#    runtime, scene breakdown, continuity, approval status — and SEE it:
+#    draft previews open Studio with a burned-in DRAFT watermark
 npm run pipeline -- review drafts/my-video.bible.json --script script.txt
+npm run pipeline -- preview --draft drafts/my-video.bible.json
+
+# 2b. Satisfy the draft's Asset Requests (images with a generationBrief):
+#     generates via an asset provider (nano-banana / gpt-image; needs
+#     GEMINI_API_KEY or OPENAI_API_KEY) into public/generated/<id>/,
+#     with provenance in manifest.json. Generated files are production
+#     inputs — commit them, like approved Bibles. Re-run to retry failures;
+#     existing files are skipped (--force regenerates).
+npm run pipeline -- generate drafts/my-video.bible.json --draft
+#     (works on the approved pair without --draft; never modifies the Bible)
 
 # 3. Approve it (interactive confirmation; writes the approved pair)
 npm run pipeline -- approve drafts/my-video.bible.json --by "Your Name"

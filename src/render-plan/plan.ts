@@ -52,6 +52,14 @@ export interface RenderPlanLayer {
   /** Looked up in the shared recipe registry at render time. */
   recipeName: string;
 
+  /**
+   * Fully-resolved recipe parameters (M15): every parameter the recipe
+   * declares is present — authored values validated, defaults filled in by
+   * the compiler — so the renderer passes this straight into `sample`
+   * without a single decision. Plain JSON values, byte-stable.
+   */
+  params: Readonly<Record<string, string | number>>;
+
   /** The entity's asset, embedded whole. */
   asset: Asset;
 

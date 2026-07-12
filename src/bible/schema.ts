@@ -51,6 +51,15 @@ export const ImageAssetDeclSchema = z.object({
   src: z.string().min(1),
   intrinsicWidth: z.number().int().positive(),
   intrinsicHeight: z.number().int().positive(),
+
+  // Asset Request (added sprint M15, planning only): when present, this
+  // image does not exist yet — `src` is the agreed path a to-be-generated
+  // file will land at, and this brief is the generation spec (subject,
+  // composition, style) for whoever/whatever produces it (the long-term
+  // direction is AI image generation). Because it lives in the Bible, the
+  // approval hash covers the brief itself: the reviewer approves the
+  // generation spec along with everything else. The compiler ignores it.
+  generationBrief: z.string().min(1).optional(),
 }).strict();
 
 export const AudioAssetDeclSchema = z.object({
@@ -169,6 +178,12 @@ export const BeatSchema = z.object({
   // required capabilities are satisfied by the asset.
   recipeName: z.string().min(1),
 
+  // Parameters for the featured recipe (added M15, e.g. slide-in's
+  // direction). Shape-checked here; validated against the recipe's declared
+  // parameter spec by the compiler, which also resolves defaults — the plan
+  // only ever contains fully-resolved values.
+  recipeParams: z.record(z.union([z.string(), z.number()])).optional(),
+
   // Where the stage places the asset for this beat. Authored in the Bible
   // (not defaulted by the compiler) because layout is a creative decision
   // and the compiler is not allowed to make decisions — only to execute.
@@ -183,6 +198,14 @@ export const BeatSchema = z.object({
   // this beat. Must currently be on stage — exiting an absent asset is a
   // continuity contradiction the compiler rejects.
   exit: z.array(z.string().min(1)).optional(),
+
+  // Which recipe plays the exits this beat emits (added M15; default
+  // exit-fade). Applies uniformly to the beat's exits. Validated by the
+  // compiler like any recipe reference.
+  exitRecipeName: z.string().min(1).optional(),
+
+  // Parameters for the exit recipe, same contract as recipeParams.
+  exitRecipeParams: z.record(z.union([z.string(), z.number()])).optional(),
 
   // A camera cut: partial on purpose (a beat that only zooms shouldn't
   // restate position); merges into the carried camera state.

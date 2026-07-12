@@ -17,6 +17,32 @@ import type { Asset, Capability } from "../assets";
  * Stage; the compiler/renderer compose the two.
  */
 
+/** The value a resolved recipe parameter can take. */
+export type RecipeParamValue = string | number;
+
+/**
+ * A recipe's declared parameter (added in sprint M15, driven by production
+ * evidence: "drops on top" needed a slide direction). Each spec carries its
+ * own default: the COMPILER resolves defaults and validates authored values
+ * against the spec, so by the time `sample` runs, every declared parameter
+ * is present and legal — the plan embeds fully-resolved values, keeping the
+ * byte-identical determinism contract intact.
+ */
+export type RecipeParamSpec =
+  | {
+      kind: "enum";
+      values: readonly string[];
+      default: string;
+      description: string;
+    }
+  | {
+      kind: "number";
+      min: number;
+      max: number;
+      default: number;
+      description: string;
+    };
+
 /**
  * Everything a recipe's frame function is allowed to know. Deliberately
  * closed: if it isn't in the context, the recipe can't depend on it, which
@@ -37,6 +63,13 @@ export interface RecipeContext {
    * assume the capabilities they declared are present.
    */
   asset: Asset;
+  /**
+   * Resolved parameter values (every declared param present when the
+   * compiler built the context's source layer). Optional so hand-built
+   * contexts (tests, tools) stay valid; recipes must still fall back to
+   * their spec defaults when reading, keeping `sample` total.
+   */
+  params?: Readonly<Record<string, RecipeParamValue>>;
 }
 
 /**
@@ -93,6 +126,14 @@ export interface Recipe {
    * animation a 10-frame beat — at validation time, not render time.
    */
   minDurationInFrames: number;
+
+  /**
+   * The parameters this recipe accepts (absent = none). The compiler
+   * rejects authored params that aren't declared here, don't match the
+   * spec's type, or fall outside its bounds — a Bible can only say things
+   * the recipe actually understands.
+   */
+  params?: Readonly<Record<string, RecipeParamSpec>>;
 
   /**
    * The frame function. MUST be pure and deterministic: same context in,

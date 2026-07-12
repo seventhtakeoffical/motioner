@@ -1,9 +1,17 @@
 {
   "extends": "../tsconfig.json",
   "compilerOptions": {
-    "types": ["node"],
+    "types": [
+      "node"
+    ],
     "jsx": "react-jsx"
   },
-  "include": ["./**/*.ts", "../src/**/*.ts", "../author/**/*.ts", "../review/**/*.ts"],
+  "include": [
+    "./**/*.ts",
+    "../src/**/*.ts",
+    "../author/**/*.ts",
+    "../review/**/*.ts",
+    "../generate/**/*.ts"
+  ],
   "exclude": []
 }

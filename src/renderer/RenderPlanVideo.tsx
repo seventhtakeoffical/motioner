@@ -23,7 +23,10 @@ import { AssetView } from "./AssetView";
  */
 const recipeRegistry = createDefaultRecipeRegistry();
 
-export const RenderPlanVideo: React.FC<{ plan: RenderPlan }> = ({ plan }) => {
+export const RenderPlanVideo: React.FC<{ plan: RenderPlan; draft?: boolean }> = ({
+  plan,
+  draft = false,
+}) => {
   return (
     <AbsoluteFill style={{ backgroundColor: "#000000" }}>
       {plan.beats.map((beat) => (
@@ -35,9 +38,39 @@ export const RenderPlanVideo: React.FC<{ plan: RenderPlan }> = ({ plan }) => {
           <BeatWindowView beat={beat} />
         </Sequence>
       ))}
+      {draft ? <DraftWatermark /> : null}
     </AbsoluteFill>
   );
 };
+
+/**
+ * Burned into every frame of a draft preview (M15): draft output must be
+ * visually unmistakable, even in a screenshot or screen recording. The
+ * production `render` command never sets `draft` — it cannot; the flag
+ * doesn't exist there — so this can only appear via the draft-preview path.
+ */
+const DraftWatermark: React.FC = () => (
+  <AbsoluteFill style={{ pointerEvents: "none", zIndex: 9999 }}>
+    <div
+      style={{
+        position: "absolute",
+        top: 64,
+        right: -72,
+        transform: "rotate(30deg)",
+        backgroundColor: "#c0392b",
+        color: "#ffffff",
+        fontFamily: "Helvetica, Arial, sans-serif",
+        fontSize: 22,
+        fontWeight: 700,
+        letterSpacing: 2,
+        padding: "6px 72px",
+        opacity: 0.9,
+      }}
+    >
+      DRAFT — NOT APPROVED
+    </div>
+  </AbsoluteFill>
+);
 
 const BeatWindowView: React.FC<{ beat: RenderPlanBeat }> = ({ beat }) => {
   // Local to the enclosing <Sequence>, so frame 0 here is the beat's first
@@ -87,6 +120,7 @@ const LayerView: React.FC<{
     frame,
     durationInFrames,
     asset: layer.asset,
+    params: layer.params,
   });
 
   // Composition rule (see stage/stage.ts): recipe offsets add to the stage

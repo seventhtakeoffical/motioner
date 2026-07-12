@@ -1,0 +1,67 @@
+[
+  {
+    "src": "generated/deleted-photos/book-on-shelf.png",
+    "assetId": "book-on-shelf",
+    "provider": "nano-banana",
+    "model": "gemini-2.5-flash-image",
+    "seed": 3841249936,
+    "briefHash": "388c5a61",
+    "generatorVersion": "1.0.0",
+    "promptTemplateVersion": "explainer-image-v1",
+    "source": "draft",
+    "format": "png",
+    "generatedAt": "2026-07-12T03:54:28.875Z"
+  },
+  {
+    "src": "generated/deleted-photos/catalog-card.png",
+    "assetId": "catalog-card",
+    "provider": "nano-banana",
+    "model": "gemini-2.5-flash-image",
+    "seed": 2341122603,
+    "briefHash": "b10f8a7a",
+    "generatorVersion": "1.0.0",
+    "promptTemplateVersion": "explainer-image-v1",
+    "source": "draft",
+    "format": "png",
+    "generatedAt": "2026-07-12T03:54:37.365Z"
+  },
+  {
+    "src": "generated/deleted-photos/library.png",
+    "assetId": "library",
+    "provider": "nano-banana",
+    "model": "gemini-2.5-flash-image",
+    "seed": 698353351,
+    "briefHash": "d5bf780b",
+    "generatorVersion": "1.0.0",
+    "promptTemplateVersion": "explainer-image-v1",
+    "source": "draft",
+    "format": "png",
+    "generatedAt": "2026-07-12T03:54:21.184Z"
+  },
+  {
+    "src": "generated/deleted-photos/new-file.png",
+    "assetId": "new-file",
+    "provider": "nano-banana",
+    "model": "gemini-2.5-flash-image",
+    "seed": 2932013402,
+    "briefHash": "41c6b0d2",
+    "generatorVersion": "1.0.0",
+    "promptTemplateVersion": "explainer-image-v1",
+    "source": "draft",
+    "format": "png",
+    "generatedAt": "2026-07-12T03:54:45.278Z"
+  },
+  {
+    "src": "generated/deleted-photos/phone-photo.png",
+    "assetId": "phone-photo",
+    "provider": "nano-banana",
+    "model": "gemini-2.5-flash-image",
+    "seed": 3604063741,
+    "briefHash": "003c2223",
+    "generatorVersion": "1.0.0",
+    "promptTemplateVersion": "explainer-image-v1",
+    "source": "draft",
+    "format": "png",
+    "generatedAt": "2026-07-12T03:54:10.930Z"
+  }
+]

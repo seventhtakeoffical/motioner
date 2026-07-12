@@ -262,3 +262,82 @@ describe("binding validation (M5)", () => {
     expect(() => compile(b)).toThrow(/requires capability "textual"/);
   });
 });
+
+describe("recipe parameters (M15)", () => {
+  it("resolves authored params and defaults into the plan layer", () => {
+    const plan = compile(
+      bible((b) => {
+        b.scenes[0].beats[0].recipeName = "slide-in";
+        b.scenes[0].beats[0].recipeParams = { direction: "top" };
+      }),
+    );
+    expect(plan.beats[0].layers[0].params).toEqual({ direction: "top" });
+
+    // No authored params → the spec default lands in the plan, resolved.
+    const defaulted = compile(
+      bible((b) => (b.scenes[0].beats[0].recipeName = "slide-in")),
+    );
+    expect(defaulted.beats[0].layers[0].params).toEqual({ direction: "left" });
+
+    // Recipes without params get an empty resolved record.
+    expect(compile(bible()).beats[0].layers[0].params).toEqual({});
+  });
+
+  it("rejects unknown parameter names and illegal enum values", () => {
+    expect(() =>
+      compile(
+        bible((b) => {
+          b.scenes[0].beats[0].recipeName = "slide-in";
+          b.scenes[0].beats[0].recipeParams = { speed: 2 };
+        }),
+      ),
+    ).toThrow(/does not accept a parameter named "speed".*It accepts: direction/);
+
+    expect(() =>
+      compile(
+        bible((b) => {
+          b.scenes[0].beats[0].recipeParams = { anything: 1 };
+        }),
+      ),
+    ).toThrow(/accepts no parameters/);
+
+    expect(() =>
+      compile(
+        bible((b) => {
+          b.scenes[0].beats[0].recipeName = "slide-in";
+          b.scenes[0].beats[0].recipeParams = { direction: "diagonal" };
+        }),
+      ),
+    ).toThrow(/must be one of left \| right \| top \| bottom/);
+  });
+
+  it("validates number params against their declared bounds", () => {
+    const registry = createDefaultRecipeRegistry();
+    registry.register({
+      name: "test-number-param",
+      requiredCapabilities: [],
+      minDurationInFrames: 1,
+      params: {
+        intensity: {
+          kind: "number",
+          min: 0,
+          max: 1,
+          default: 0.5,
+          description: "test",
+        },
+      },
+      sample: () => ({ opacity: 1, offsetX: 0, offsetY: 0, scale: 1 }),
+    });
+    const b = bible((draft) => {
+      draft.scenes[0].beats[0].recipeName = "test-number-param";
+      draft.scenes[0].beats[0].recipeParams = { intensity: 2 };
+    });
+    expect(() => compileBible(b, registry)).toThrow(
+      /"intensity" must be a number in \[0, 1\]/,
+    );
+
+    b.scenes[0].beats[0].recipeParams = { intensity: 0.75 };
+    const plan = compileBible(b, registry);
+    expect(plan.beats[0].layers[0].params).toEqual({ intensity: 0.75 });
+  });
+});

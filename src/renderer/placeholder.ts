@@ -34,6 +34,7 @@ export const placeholderPlan: RenderPlan = {
           entityId: "placeholder-message",
           role: "enter",
           recipeName: "static-fade",
+          params: {},
           asset: {
             kind: "text",
             id: "placeholder-message",

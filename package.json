@@ -29,10 +29,11 @@
     "dev": "remotion studio",
     "build": "remotion bundle",
     "upgrade": "remotion upgrade",
-    "lint": "eslint src && tsc && tsc -p author && tsc -p review && tsc -p pipeline",
+    "lint": "eslint src && tsc && tsc -p author && tsc -p review && tsc -p pipeline && tsc -p generate",
     "test": "vitest run",
     "author": "tsx author/author.ts",
     "review": "tsx review/cli.ts",
-    "pipeline": "tsx pipeline/cli.ts"
+    "pipeline": "tsx pipeline/cli.ts",
+    "generate": "tsx generate/cli.ts"
   }
 }

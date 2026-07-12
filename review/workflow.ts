@@ -38,16 +38,36 @@ export function findSiblingApproval(biblePath: string): string | undefined {
     : undefined;
 }
 
+/**
+ * Recursively list media files under a directory (relative POSIX paths,
+ * sorted) — the filesystem facts the pure report checks media srcs against.
+ */
+export function listMediaFiles(dir: string): string[] | undefined {
+  if (!fs.existsSync(dir)) return undefined;
+  const files: string[] = [];
+  const walk = (current: string, prefix: string) => {
+    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+      const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) walk(path.join(current, entry.name), rel);
+      else files.push(rel);
+    }
+  };
+  walk(dir, "");
+  return files.sort();
+}
+
 /** Build the review report for a Bible file, picking up a sibling approval. */
 export function reviewFile(
   biblePath: string,
   scriptText?: string,
+  mediaDir = "public",
 ): ReviewReport {
   const approvalPath = findSiblingApproval(biblePath);
   return buildReviewReport({
     bible: loadJson(biblePath),
     scriptText,
     approval: approvalPath ? loadJson(approvalPath) : undefined,
+    existingMedia: listMediaFiles(mediaDir),
   });
 }
 

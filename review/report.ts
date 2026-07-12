@@ -40,6 +40,13 @@ export interface ReviewReport {
   missingInfo: string[];
   /** Observable creative decisions that require human verification. */
   assumptions: string[];
+  /**
+   * Asset Requests (M15): images this Bible declares that do not exist yet
+   * — each line is the agreed src path plus the generation brief. Planning
+   * output for the (future) image-generation step; the reviewer approves
+   * these specs along with the rest of the document.
+   */
+  assetRequests: string[];
   approval: ApprovalStatus;
   /** Present when the draft parsed. */
   bible?: Bible;
@@ -53,6 +60,13 @@ export interface ReviewInput {
   scriptText?: string;
   /** An approval record to check against the draft, when one exists. */
   approval?: unknown;
+  /**
+   * Media files that actually exist (relative paths under public/),
+   * supplied by the CLI shell — this module never touches the filesystem.
+   * When present, media declarations are checked against it; when absent,
+   * the report falls back to "confirm this exists" phrasing.
+   */
+  existingMedia?: readonly string[];
 }
 
 function countWords(text: string): number {
@@ -75,6 +89,7 @@ export function buildReviewReport(input: ReviewInput): ReviewReport {
     warnings: [],
     missingInfo: [],
     assumptions: [],
+    assetRequests: [],
     approval: { status: "none" },
   };
 
@@ -139,13 +154,28 @@ export function buildReviewReport(input: ReviewInput): ReviewReport {
     }
   }
 
-  // ---- Missing information ----
+  // ---- Missing information & asset requests ----
   for (const asset of bible.assets) {
     if (asset.kind === "image" || asset.kind === "video" || asset.kind === "audio") {
-      report.missingInfo.push(
-        `media file existence cannot be verified from the Bible alone — ` +
-          `confirm "${asset.src}" exists (${asset.kind} "${asset.id}").`,
-      );
+      const brief = asset.kind === "image" ? asset.generationBrief : undefined;
+      if (asset.kind === "image" && asset.generationBrief) {
+        report.assetRequests.push(
+          `"${asset.id}" → ${asset.src} (${asset.intrinsicWidth}x${asset.intrinsicHeight}): ${asset.generationBrief}`,
+        );
+      }
+      if (input.existingMedia === undefined) {
+        report.missingInfo.push(
+          `media file existence cannot be verified from the Bible alone — ` +
+            `confirm "${asset.src}" exists (${asset.kind} "${asset.id}").`,
+        );
+      } else if (!input.existingMedia.includes(asset.src)) {
+        report.missingInfo.push(
+          `media file NOT on disk: "${asset.src}" (${asset.kind} "${asset.id}")` +
+            (brief
+              ? ` — a requested asset; generate it to its brief before rendering.`
+              : ` — the file must land in public/ before rendering.`),
+        );
+      }
     }
   }
 
@@ -351,6 +381,7 @@ export function renderReport(report: ReviewReport): string {
   out.push(section("Warnings", report.warnings));
   out.push(section("Missing information", report.missingInfo));
   out.push(section("Assumptions to verify", report.assumptions));
+  out.push(section("Asset requests (to be generated)", report.assetRequests));
 
   if (bible && plan) {
     const beats = bible.scenes.reduce((n, s) => n + s.beats.length, 0);

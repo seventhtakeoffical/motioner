@@ -8,7 +8,7 @@ import { parseBible } from "../src/bible/validate";
 import { compileBible } from "../src/compiler";
 import { createDefaultRecipeRegistry } from "../src/recipes";
 import { approveDraft, reviewFile } from "../review/workflow";
-import { compilePlanFromFiles, readJson } from "./run";
+import { compileDraftPlan, compilePlanFromFiles, readJson } from "./run";
 
 /**
  * M14 end-to-end tests: the complete production workflow, on disk, through
@@ -116,6 +116,24 @@ describe("post-approval modification kills rendering", () => {
     expect(() =>
       compilePlanFromFiles(approved.biblePath, approved.approvalPath),
     ).toThrow(/Refusing to render.*changed since it was approved/s);
+  });
+});
+
+describe("draft preview (M15 — sighted review)", () => {
+  it("compiles a DRAFT to a plan through the pure core, no approval involved", () => {
+    const draftPath = simulateAuthor();
+    const plan = compileDraftPlan(draftPath);
+    expect(plan.totalDurationInFrames).toBe(360);
+  });
+
+  it("still refuses invalid drafts with the gate's own error", () => {
+    const badPath = simulateAuthor((b) => {
+      b.scenes[0].beats[0].recipeName = "no-such-recipe";
+    });
+    expect(() => compileDraftPlan(badPath)).toThrow(/Compile error/);
+    expect(() => compileDraftPlan(path.join(dir, "missing.json"))).toThrow(
+      /Cannot read the draft Bible file/,
+    );
   });
 });
 

@@ -1,5 +1,6 @@
 import { drawOn } from "./draw-on";
 import { exitFade } from "./exit-fade";
+import { exitSlide } from "./exit-slide";
 import { hold } from "./hold";
 import { panZoom } from "./pan-zoom";
 import { popIn } from "./pop-in";
@@ -37,6 +38,7 @@ export const defaultRecipes = [
   popIn,
   hold,
   exitFade,
+  exitSlide,
 ] as const;
 
 export function createDefaultRecipeRegistry(): RecipeRegistry {

@@ -38,7 +38,7 @@ slug), and kind-specific fields:
 | `caption` | `content: string` | Lower-third text; renderers style it as a strip. |
 | `chart` | `chartType: "bar"`, `data: [{label, value}]` (min 1 entry, values ≥ 0 and finite) | Data embedded whole — numbers must come from the script. `"bar"` is the only chart type. |
 | `icon` | `viewBox: string`, `path: string` | Inline SVG geometry (e.g. `viewBox: "0 0 24 24"` and an SVG path `d` string). You author the geometry — keep shapes simple and bold. |
-| `image` | `src`, `intrinsicWidth`, `intrinsicHeight` | ONLY when the task input lists an available image file. |
+| `image` | `src`, `intrinsicWidth`, `intrinsicHeight`, optional `generationBrief` | Either `src` is a file from the task's media list, OR this is an **Asset Request**: `src` under the task's `generated/…` path + a `generationBrief` (the generation spec: subject, composition, style, mood; state "no text in image" — on-screen words belong to text assets). For requests, choose sensible dimensions (e.g. 1536x1024 for a wide illustration). |
 | `video` | `src`, `intrinsicWidth`, `intrinsicHeight`, `durationInSeconds` | ONLY when the task input lists an available video file. |
 | `audio` | `src`, `durationInSeconds` | ONLY when the task input lists an available audio file. |
 
@@ -64,6 +64,9 @@ beat). Camera and theme carry across scenes until changed.
 | `visualIntent` | string | One or two sentences of natural language telling the human reviewer what this beat should look like — the intent they will judge your binding against. |
 | `assetId` | string | The featured asset this beat brings on (or moves). Must match a declared asset id. |
 | `recipeName` | string | The recipe choreographing the featured asset. Must exist in the recipe table and its required capabilities must be a subset of the asset's. |
+| `recipeParams` | optional object | Parameters for the featured recipe, exactly as listed in the recipe table (e.g. `{"direction": "top"}` for slide-in). Unknown names or illegal values fail compilation. Omit entirely when defaults are right. |
+| `exitRecipeName` | optional string | How things leave during this beat: the recipe played by this beat's exits (default `exit-fade`). Use `exit-slide` when a removal should move, not just dissolve. Only legal on beats that actually emit exits. |
+| `exitRecipeParams` | optional object | Parameters for the exit recipe, same contract as `recipeParams`. |
 | `placement` | `{x, y, scale, zIndex}` | Where the stage puts the asset: `x`/`y` are the asset's CENTER in normalized frame coordinates ((0,0) top-left, (1,1) bottom-right; values outside 0..1 are legal for offscreen staging), `scale` is a positive multiplier on natural size, `zIndex` an integer (higher = in front). |
 | `exit` | optional string array | Asset ids struck from the stage as this beat begins (they play a 12-frame fade-out). Each must currently be ON stage. **Forbidden on the first beat of any scene** — scene boundaries strike automatically. |
 | `camera` | optional `{x?, y?, zoom?}` | A camera cut applied at beat start and carried afterward. Partial: only state what changes. `zoom` is positive; 1 shows the full frame, 2 shows half (pushed in). Default camera is `{x: 0.5, y: 0.5, zoom: 1}`. |

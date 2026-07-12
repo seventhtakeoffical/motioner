@@ -3,6 +3,8 @@ import type { Bible } from "../bible/schema";
 import {
   EXIT_FADE_RECIPE_NAME,
   HOLD_RECIPE_NAME,
+  type Recipe,
+  type RecipeParamValue,
   type RecipeRegistry,
 } from "../recipes";
 import type {
@@ -90,6 +92,63 @@ const ROLE_ORDER: Record<RenderPlanLayer["role"], number> = {
   hold: 1,
   enter: 2,
 };
+
+/**
+ * Validate authored params against the recipe's declared spec and resolve
+ * defaults (M15). The result is total: every declared parameter is present.
+ * Keys are emitted in the recipe's own spec-declaration order — a value-
+ * based, source-stable order, so resolved params never wobble plan bytes.
+ */
+function resolveRecipeParams(
+  itemId: string,
+  recipe: Recipe,
+  authored: Readonly<Record<string, RecipeParamValue>> | undefined,
+): Record<string, RecipeParamValue> {
+  const spec = recipe.params ?? {};
+  for (const name of Object.keys(authored ?? {})) {
+    if (!(name in spec)) {
+      fail(
+        itemId,
+        `recipe "${recipe.name}" does not accept a parameter named "${name}".` +
+          (Object.keys(spec).length > 0
+            ? ` It accepts: ${Object.keys(spec).join(", ")}.`
+            : ` It accepts no parameters.`),
+      );
+    }
+  }
+  const resolved: Record<string, RecipeParamValue> = {};
+  for (const [name, paramSpec] of Object.entries(spec)) {
+    const value = authored?.[name];
+    if (value === undefined) {
+      resolved[name] = paramSpec.default;
+      continue;
+    }
+    if (paramSpec.kind === "enum") {
+      if (typeof value !== "string" || !paramSpec.values.includes(value)) {
+        fail(
+          itemId,
+          `recipe "${recipe.name}" parameter "${name}" must be one of ` +
+            `${paramSpec.values.join(" | ")}, got ${JSON.stringify(value)}.`,
+        );
+      }
+    } else {
+      if (
+        typeof value !== "number" ||
+        !Number.isFinite(value) ||
+        value < paramSpec.min ||
+        value > paramSpec.max
+      ) {
+        fail(
+          itemId,
+          `recipe "${recipe.name}" parameter "${name}" must be a number in ` +
+            `[${paramSpec.min}, ${paramSpec.max}], got ${JSON.stringify(value)}.`,
+        );
+      }
+    }
+    resolved[name] = value;
+  }
+  return resolved;
+}
 
 function paintOrder(a: RenderPlanLayer, b: RenderPlanLayer): number {
   if (a.placement.zIndex !== b.placement.zIndex) {
@@ -182,6 +241,12 @@ export function compileBible(
         );
       }
 
+      const featuredParams = resolveRecipeParams(
+        beatId,
+        recipe,
+        beat.recipeParams,
+      );
+
       // ---- Exits: authored (M10) or scene-boundary strike (M11) ----
       // A scene change strikes the set: on the first beat of every scene
       // after the first, whatever survived the previous scene is struck
@@ -206,6 +271,13 @@ export function compileBible(
         exitIds = beat.exit ?? [];
       }
 
+      // The exit recipe (M15): authored per beat, defaulting to exit-fade.
+      // Applies uniformly to every exit this beat emits — authored strikes
+      // and scene-boundary strikes alike (it is the beat's "how things
+      // leave" decision). Scene-boundary strikes on a beat that says
+      // nothing use the house default.
+      const exitRecipeName = beat.exitRecipeName ?? EXIT_FADE_RECIPE_NAME;
+
       // Exiting entities must be captured from the PRE-update stage: their
       // final placement is what the exit transition plays at.
       const seenExitIds = new Set<string>();
@@ -226,20 +298,31 @@ export function compileBible(
         return {
           entityId: exitId,
           role: "exit",
-          recipeName: EXIT_FADE_RECIPE_NAME,
+          recipeName: exitRecipeName,
+          // Filled in below once the exit recipe is validated — every layer
+          // of this beat shares the same resolved exit params.
+          params: {},
           asset: assets.get(exitId),
           placement,
         };
       });
 
       if (exitLayers.length > 0) {
-        if (!recipes.has(EXIT_FADE_RECIPE_NAME)) {
+        if (!recipes.has(exitRecipeName)) {
           fail(
             beatId,
-            `beat exits assets, but recipe "${EXIT_FADE_RECIPE_NAME}" is not in the registry.`,
+            `beat exits assets, but recipe "${exitRecipeName}" is not in the registry.`,
           );
         }
-        const exitRecipe = recipes.get(EXIT_FADE_RECIPE_NAME);
+        const exitRecipe = recipes.get(exitRecipeName);
+        const exitParams = resolveRecipeParams(
+          beatId,
+          exitRecipe,
+          beat.exitRecipeParams,
+        );
+        for (const layer of exitLayers) {
+          layer.params = exitParams;
+        }
         if (beat.durationInFrames < exitRecipe.minDurationInFrames) {
           fail(
             beatId,
@@ -249,9 +332,18 @@ export function compileBible(
                   `entit${exitLayers.length === 1 ? "y" : "ies"} and `
                 : `exiting assets `) +
               `need${isSceneOpening ? "s" : ""} at least ` +
-              `${exitRecipe.minDurationInFrames} frames for the exit transition.`,
+              `${exitRecipe.minDurationInFrames} frames for the "${exitRecipeName}" exit transition.`,
           );
         }
+      } else if (
+        beat.exitRecipeName !== undefined ||
+        beat.exitRecipeParams !== undefined
+      ) {
+        fail(
+          beatId,
+          `beat sets exitRecipeName/exitRecipeParams but emits no exits — ` +
+            `nothing leaves the stage during this beat.`,
+        );
       }
 
       // ---- Stage threading ----
@@ -287,6 +379,7 @@ export function compileBible(
                 entityId: placement.assetId,
                 role: "enter",
                 recipeName: beat.recipeName,
+                params: featuredParams,
                 asset: featuredAsset,
                 placement,
               }
@@ -294,6 +387,7 @@ export function compileBible(
                 entityId: placement.assetId,
                 role: "hold",
                 recipeName: HOLD_RECIPE_NAME,
+                params: {},
                 asset: assets.get(placement.assetId),
                 placement,
               },

@@ -15,7 +15,8 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { compileApprovedBible } from "../src/compiler";
+import { parseBible } from "../src/bible/validate";
+import { compileApprovedBible, compileBible } from "../src/compiler";
 import { createDefaultRecipeRegistry } from "../src/recipes";
 import type { RenderPlan } from "../src/render-plan";
 
@@ -63,13 +64,28 @@ export function compilePlanFromFiles(
   }
 }
 
-function withPropsFile<T>(plan: RenderPlan, fn: (propsPath: string) => T): T {
+/**
+ * Draft Bible → plan, through the PURE compiler core — deliberately NOT the
+ * gate, and deliberately NOT reachable from the render command. Sighted
+ * review (M15): a reviewer must be able to SEE a draft before approving it.
+ * The resulting preview carries a burned-in DRAFT watermark.
+ */
+export function compileDraftPlan(biblePath: string): RenderPlan {
+  const bible = parseBible(readJson(biblePath, "draft Bible"));
+  return compileBible(bible, createDefaultRecipeRegistry());
+}
+
+function withPropsFile<T>(
+  plan: RenderPlan,
+  fn: (propsPath: string) => T,
+  draft = false,
+): T {
   const propsPath = path.join(
     fs.mkdtempSync(path.join(os.tmpdir(), "motioner-props-")),
     "props.json",
   );
   try {
-    fs.writeFileSync(propsPath, JSON.stringify({ plan }));
+    fs.writeFileSync(propsPath, JSON.stringify({ plan, draft }));
     return fn(propsPath);
   } finally {
     fs.rmSync(path.dirname(propsPath), { recursive: true, force: true });
@@ -137,4 +153,20 @@ export function previewInStudio(biblePath: string, approvalPath: string): void {
   withPropsFile(plan, (propsPath) => {
     runRemotion(["studio", `--props=${propsPath}`]);
   });
+}
+
+export function previewDraftInStudio(biblePath: string): void {
+  const plan = compileDraftPlan(biblePath);
+  console.log(
+    `DRAFT plan compiled — opening Studio with a watermarked draft preview.\n` +
+      `This preview proves nothing about approval: rendering still requires ` +
+      `the approved pair.`,
+  );
+  withPropsFile(
+    plan,
+    (propsPath) => {
+      runRemotion(["studio", `--props=${propsPath}`]);
+    },
+    true,
+  );
 }

@@ -1,6 +1,7 @@
 export * from "./draw-on";
 export * from "./easing";
 export * from "./exit-fade";
+export * from "./exit-slide";
 export * from "./hold";
 export * from "./library";
 export * from "./pan-zoom";
