@@ -1,5 +1,16 @@
 # Build Plan — Deterministic AI Explainer Video Compiler
 
+> **HISTORICAL DOCUMENT.** This is the milestone roadmap Motioner was
+> built against (M0–M15, all delivered). It is preserved unchanged as a
+> record of how the system came to be — not as guidance. Motioner is now
+> in **production stabilization**: the architecture is frozen, and the
+> governing documents are **`VISUAL_GRAMMAR.md`** (what the system must
+> express) and **`ENGINEERING.md`** (the policies the code enforces —
+> versioning, frozen names, additive-only schema evolution, determinism,
+> file conventions). Future engineering work follows those documents,
+> never this one; where they and this plan disagree, this plan is simply
+> out of date.
+
 ## Pipeline recap
 
 ```
