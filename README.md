@@ -108,3 +108,11 @@ bundle.
 
 The Remotion framework requires a company license for some entities.
 [Read the terms](https://github.com/remotion-dev/remotion/blob/main/LICENSE.md).
+
+
+## Core Documents
+
+- VISUAL_GRAMMAR.md — Product & visual rules (authoritative)
+- ENGINEERING.md — Engineering policies (authoritative)
+- BUILD_PLAN.md — Historical build record
+- author/README.md — Author subsystem
