@@ -1,5 +1,5 @@
 import {
-  explainerImageTemplate,
+  makeExplainerTemplate,
   ProviderError,
   type AssetProvider,
   type GeneratedAsset,
@@ -46,7 +46,11 @@ function apiKey(): string | undefined {
 export const nanoBanana: AssetProvider = {
   name: "nano-banana",
   capabilities: ["image"],
-  promptTemplate: explainerImageTemplate,
+  // No alpha channel from Gemini image gen: composability is achieved via
+  // the template's uniform-matte fallback (an optional background-removal
+  // normalization step can upgrade this later).
+  supportsTransparentBackground: false,
+  promptTemplate: makeExplainerTemplate({ transparentBackground: false }),
 
   isConfigured() {
     return apiKey()

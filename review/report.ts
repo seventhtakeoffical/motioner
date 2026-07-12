@@ -146,10 +146,14 @@ export function buildReviewReport(input: ReviewInput): ReviewReport {
   const featuredIds = new Set(
     bible.scenes.flatMap((s) => s.beats.map((b) => b.assetId)),
   );
+  // Serving as a scene's world plate is usage too (Sprint A).
+  for (const scene of bible.scenes) {
+    if (scene.plate) featuredIds.add(scene.plate);
+  }
   for (const asset of bible.assets) {
     if (!featuredIds.has(asset.id)) {
       report.warnings.push(
-        `asset "${asset.id}" (${asset.kind}) is declared but never featured by any beat.`,
+        `asset "${asset.id}" (${asset.kind}) is declared but never used by any beat or plate.`,
       );
     }
   }
@@ -221,7 +225,134 @@ export function buildReviewReport(input: ReviewInput): ReviewReport {
     }
   }
 
+  addGrammarWarnings(report, bible);
   return report;
+}
+
+/**
+ * Visual Grammar checks (Sprint A). Each warning cites the principle it
+ * enforces. Warnings only — the human reviewer stays the judge; approval
+ * never blocks on style.
+ */
+function addGrammarWarnings(report: ReviewReport, bible: Bible): void {
+  const warn = (text: string) => report.warnings.push(`Grammar: ${text}`);
+
+  const briefedImages = bible.assets.filter(
+    (a) => a.kind === "image" && a.generationBrief !== undefined,
+  );
+  if (briefedImages.length > 0 && !bible.visualStyle) {
+    warn(
+      `no visualStyle directive — every generated asset will style itself ` +
+        `independently (P13 "one wardrobe").`,
+    );
+  }
+
+  const unplated = bible.scenes.filter((s) => s.plate === undefined);
+  if (unplated.length > 0) {
+    warn(
+      `scene(s) without a world plate: ${unplated.map((s) => s.id).join(", ")} ` +
+        `— every scene should exist inside a shared world (P1/P3).`,
+    );
+  }
+
+  const plateIds = new Set(bible.scenes.map((s) => s.plate).filter(Boolean));
+  const featuredIds = new Set(
+    bible.scenes.flatMap((s) => s.beats.map((b) => b.assetId)),
+  );
+  for (const plateId of plateIds) {
+    if (featuredIds.has(plateId as string)) {
+      warn(
+        `asset "${plateId}" serves as a world plate AND is featured by a ` +
+          `beat — it will be generated as a plate; verify both usages read well.`,
+      );
+    }
+  }
+
+  for (const asset of bible.assets) {
+    if (
+      (asset.kind === "text" || asset.kind === "caption") &&
+      asset.content.split(/\s+/).filter(Boolean).length > 8
+    ) {
+      warn(
+        `${asset.kind} "${asset.id}" is ${asset.content.split(/\s+/).filter(Boolean).length} ` +
+          `words — typography is punctuation, not prose (P9).`,
+      );
+    }
+    // Strip negations ("no text in image") before hunting for
+    // lettering-inviting content — those phrases PREVENT baked text.
+    const briefWithoutNegations =
+      asset.kind === "image" && asset.generationBrief
+        ? asset.generationBrief.replace(
+            /\b(?:no|without|avoid(?:ing)?)\s+(?:any\s+)?(?:readable\s+)?(?:text|words?|letters?|labels?|signs?|logos?|captions?|writing|typography|numbers?)\b/gi,
+            "",
+          )
+        : "";
+    if (
+      asset.kind === "image" &&
+      asset.generationBrief &&
+      /\b(text|word|letter|label|sign|logo|caption|writing|typography|number)s?\b/i.test(
+        briefWithoutNegations,
+      )
+    ) {
+      warn(
+        `brief for "${asset.id}" mentions lettering-like content — image ` +
+          `models write gibberish; text belongs to typography (P13).`,
+      );
+    }
+  }
+
+  const plan = report.plan;
+  if (!plan) return;
+
+  // ≤7 simultaneous inhabitants (P14). Plates are the world, not objects.
+  for (const window of plan.beats) {
+    const inhabitants = window.layers.filter((l) => l.role !== "plate");
+    if (inhabitants.length > 7) {
+      warn(
+        `${window.id} has ${inhabitants.length} simultaneous elements — ` +
+          `more than ~7 reads as clutter (P14).`,
+      );
+      break;
+    }
+  }
+
+  // Persistent hero (P4): some non-plate entity should live ≥3 windows.
+  if (plan.beats.length >= 4) {
+    const residency = new Map<string, number>();
+    for (const window of plan.beats) {
+      for (const layer of window.layers) {
+        if (layer.role === "enter" || layer.role === "hold") {
+          residency.set(layer.entityId, (residency.get(layer.entityId) ?? 0) + 1);
+        }
+      }
+    }
+    if (![...residency.values()].some((n) => n >= 3)) {
+      warn(
+        `no persistent hero — nothing stays on stage longer than two beats; ` +
+          `persistence is the default, disappearance needs a reason (P4).`,
+      );
+    }
+  }
+
+  // Full-frame as punctuation (P10): non-plate imagery covering ~the whole
+  // frame should be rare. Coverage is pure arithmetic on the plan.
+  let fullFrameFrames = 0;
+  for (const window of plan.beats) {
+    const covered = window.layers.some((layer) => {
+      if (layer.role === "plate" || layer.asset.kind !== "image") return false;
+      const w = (layer.asset.intrinsicWidth * layer.placement.scale) / plan.width;
+      const h = (layer.asset.intrinsicHeight * layer.placement.scale) / plan.height;
+      return Math.min(1, w) * Math.min(1, h) >= 0.85;
+    });
+    if (covered) fullFrameFrames += window.durationInFrames;
+  }
+  const share = fullFrameFrames / plan.totalDurationInFrames;
+  if (share > 0.2) {
+    warn(
+      `full-frame imagery covers ${(share * 100).toFixed(0)}% of the runtime — ` +
+        `a full frame is a held breath, not the default shot (P10).`,
+    );
+  }
 }
 
 function approvalStatus(

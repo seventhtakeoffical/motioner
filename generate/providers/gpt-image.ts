@@ -1,5 +1,5 @@
 import {
-  explainerImageTemplate,
+  makeExplainerTemplate,
   ProviderError,
   type AssetProvider,
   type GeneratedAsset,
@@ -34,7 +34,8 @@ function nearestSize(width: number, height: number): string {
 export const gptImage: AssetProvider = {
   name: "gpt-image",
   capabilities: ["image"],
-  promptTemplate: explainerImageTemplate,
+  supportsTransparentBackground: true,
+  promptTemplate: makeExplainerTemplate({ transparentBackground: true }),
 
   isConfigured() {
     return process.env.OPENAI_API_KEY
@@ -57,6 +58,8 @@ export const gptImage: AssetProvider = {
           n: 1,
           size: nearestSize(request.width, request.height),
           output_format: "png",
+          // Composable objects get real alpha; plates are full-bleed.
+          ...(request.form === "object" ? { background: "transparent" } : {}),
         }),
       });
     } catch (error) {

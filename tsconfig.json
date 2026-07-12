@@ -21,6 +21,7 @@
     "author",
     "review",
     "pipeline",
-    "generate"
+    "generate",
+    "asset-pipeline"
   ]
 }

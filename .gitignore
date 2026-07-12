@@ -8,3 +8,6 @@ out
 
 # Unreviewed LLM-drafted Bibles (M12 author output) — drafts don't belong in git
 drafts
+
+# Segmentation model weights (fetched by `pipeline models`, sha256-pinned in code)
+asset-pipeline/models

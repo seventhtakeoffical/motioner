@@ -31,6 +31,12 @@ import type { StageCamera, StagePlacement, StageTheme } from "../stage";
 
 /** An entity's relationship to the beat whose window it appears in. */
 export type LayerRole =
+  /**
+   * The scene's World Plate (Sprint A): synthesized by the compiler beneath
+   * every window of a plated scene. Not a stage entity — the world, not an
+   * inhabitant.
+   */
+  | "plate"
   /** Featured this beat: the beat's own recipe animates it in. */
   | "enter"
   /** Persisting from an earlier beat: held at its stage placement. */

@@ -88,10 +88,18 @@ function deepFreeze<T>(value: T): T {
  * in the strike-and-re-place case.
  */
 const ROLE_ORDER: Record<RenderPlanLayer["role"], number> = {
+  plate: -1,
   exit: 0,
   hold: 1,
   enter: 2,
 };
+
+/**
+ * Plates paint beneath everything an author can place: authored zIndex is
+ * an int the Bible controls, so the plate's synthesized zIndex sits far
+ * below any sane authored value.
+ */
+const PLATE_Z_INDEX = -1_000_000;
 
 /**
  * Validate authored params against the recipe's declared spec and resolve
@@ -195,6 +203,52 @@ export function compileBible(
     }
     seenSceneIds.add(scene.id);
     const sceneStartFrame = cursor;
+
+    // ---- World Plate (Sprint A, Grammar P1/P3) ----
+    // Synthesized beneath every window of the scene: a cover-scaled, held
+    // image layer that costs no narration beat and never enters the Stage
+    // (the world is not an inhabitant). Consecutive scenes naming the same
+    // plate render a continuous world across the boundary.
+    let plateLayer: RenderPlanLayer | undefined;
+    if (scene.plate !== undefined) {
+      if (!assets.has(scene.plate)) {
+        fail(
+          scene.id,
+          `scene plate references asset "${scene.plate}", which is not declared in Bible.assets.`,
+        );
+      }
+      const plateAsset = assets.get(scene.plate);
+      if (plateAsset.kind !== "image") {
+        fail(
+          scene.id,
+          `scene plate "${scene.plate}" is a ${plateAsset.kind} asset — plates must be images.`,
+        );
+      }
+      if (!recipes.has(HOLD_RECIPE_NAME)) {
+        fail(
+          scene.id,
+          `scene declares a plate, but recipe "${HOLD_RECIPE_NAME}" is not in the registry.`,
+        );
+      }
+      plateLayer = {
+        entityId: plateAsset.id,
+        role: "plate",
+        recipeName: HOLD_RECIPE_NAME,
+        params: {},
+        asset: plateAsset,
+        placement: {
+          assetId: plateAsset.id,
+          x: 0.5,
+          y: 0.5,
+          // Cover the frame: pure arithmetic from declared dimensions.
+          scale: Math.max(
+            bible.width / plateAsset.intrinsicWidth,
+            bible.height / plateAsset.intrinsicHeight,
+          ),
+          zIndex: PLATE_Z_INDEX,
+        },
+      };
+    }
 
     for (const [beatIndex, beat] of scene.beats.entries()) {
       const beatId = `${scene.id}/${beat.id}`;
@@ -410,7 +464,11 @@ export function compileBible(
         durationInFrames: beat.durationInFrames,
         camera: stage.camera,
         theme: stage.theme,
-        layers: [...stageLayers, ...exitLayers].sort(paintOrder),
+        layers: [
+          ...(plateLayer ? [plateLayer] : []),
+          ...stageLayers,
+          ...exitLayers,
+        ].sort(paintOrder),
       });
 
       cursor += beat.durationInFrames;

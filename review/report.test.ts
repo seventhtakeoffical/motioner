@@ -79,7 +79,7 @@ describe("review report — warnings and missing info", () => {
         b.assets.push({ kind: "text", id: "orphan", content: "unused" }),
       ),
     });
-    expect(report.warnings.join("\n")).toMatch(/"orphan".*never featured/);
+    expect(report.warnings.join("\n")).toMatch(/"orphan".*never used/);
   });
 
   it("asks the reviewer to verify media files exist", () => {
@@ -152,6 +152,154 @@ describe("review report — observable assumptions", () => {
     const assumptions = report.assumptions.join("\n");
     expect(assumptions).toMatch(/changes the theme to bg #f4f1ea/);
     expect(assumptions).toMatch(/cuts the camera/); // showcase's own zoom cuts
+  });
+});
+
+describe("review report — Visual Grammar checks (Sprint A)", () => {
+  const grammar = (b: Bible) =>
+    buildReviewReport({ bible: b }).warnings.filter((w) => w.startsWith("Grammar:"));
+
+  it("warns on missing visualStyle only when generation is in play (P13)", () => {
+    const withBrief = draft((b) => {
+      delete (b as { visualStyle?: string }).visualStyle;
+      b.assets.push({
+        kind: "image",
+        id: "req",
+        src: "generated/x/req.png",
+        intrinsicWidth: 1024,
+        intrinsicHeight: 1024,
+        generationBrief: "A key.",
+      });
+    });
+    expect(grammar(withBrief).join("\n")).toMatch(/no visualStyle directive/);
+    // With a style present, no warning.
+    expect(grammar(draft()).join("\n")).not.toMatch(/visualStyle/);
+  });
+
+  it("warns on scenes without a world plate (P1/P3)", () => {
+    expect(grammar(draft()).join("\n")).toMatch(
+      /without a world plate: scene-data-story, scene-punctuation, scene-closing/,
+    );
+  });
+
+  it("warns when a plate asset is also featured by beats", () => {
+    const b = draft((d) => (d.scenes[0].plate = "mountains"));
+    expect(grammar(b).join("\n")).toMatch(/"mountains".*plate AND is featured/);
+  });
+
+  it("warns on sentence-length typography (P9)", () => {
+    const b = draft((d) =>
+      d.assets.push({
+        kind: "text",
+        id: "wall",
+        content: "this is nine whole words of prose on screen",
+      }),
+    );
+    expect(grammar(b).join("\n")).toMatch(/"wall" is 9 words/);
+  });
+
+  it("warns on briefs that invite baked lettering (P13)", () => {
+    const b = draft((d) =>
+      d.assets.push({
+        kind: "image",
+        id: "sign",
+        src: "generated/x/sign.png",
+        intrinsicWidth: 1024,
+        intrinsicHeight: 1024,
+        generationBrief: "A shopfront with a big neon sign and logo.",
+      }),
+    );
+    expect(grammar(b).join("\n")).toMatch(/"sign" mentions lettering-like content/);
+
+    // Negations don't trip it — "no text in image" PREVENTS baked text.
+    const negated = draft((d) =>
+      d.assets.push({
+        kind: "image",
+        id: "clean",
+        src: "generated/x/clean.png",
+        intrinsicWidth: 1024,
+        intrinsicHeight: 1024,
+        generationBrief: "A single closed book, warm colors, no text in image.",
+      }),
+    );
+    expect(grammar(negated).join("\n")).not.toMatch(/"clean"/);
+  });
+
+  it("plate usage counts as usage: plates don't warn as unused", () => {
+    const b = draft((d) => {
+      d.assets.push({
+        kind: "image",
+        id: "world",
+        src: "generated/x/world.png",
+        intrinsicWidth: 1536,
+        intrinsicHeight: 864,
+        generationBrief: "A soft gradient field.",
+      });
+      d.scenes[0].plate = "world";
+    });
+    expect(
+      buildReviewReport({ bible: b }).warnings.join("\n"),
+    ).not.toMatch(/"world".*never used/);
+  });
+
+  it("warns when more than 7 elements share a window (P14)", () => {
+    const b = draft((d) => {
+      const scene = d.scenes[0];
+      for (let i = 0; i < 8; i++) {
+        d.assets.push({ kind: "text", id: `t${i}`, content: `item ${i}` });
+        scene.beats.push({
+          id: `beat-crowd-${i}`,
+          narration: "More.",
+          durationInFrames: 60,
+          visualIntent: "crowding",
+          assetId: `t${i}`,
+          recipeName: "static-fade",
+          placement: { x: 0.1 + i * 0.1, y: 0.5, scale: 1, zIndex: 0 },
+        });
+      }
+    });
+    expect(grammar(b).join("\n")).toMatch(/simultaneous elements/);
+  });
+
+  it("warns when nothing persists (no hero, P4)", () => {
+    const b = draft((d) => {
+      // Rebuild as churn: every beat replaces the previous asset.
+      d.scenes = [
+        {
+          id: "churn",
+          title: "Churn",
+          beats: ["a", "b", "c", "d"].map((name, i) => ({
+            id: `beat-${name}`,
+            narration: "Next.",
+            durationInFrames: 60,
+            visualIntent: "swap",
+            assetId: name,
+            recipeName: "static-fade",
+            placement: { x: 0.5, y: 0.5, scale: 1, zIndex: 0 },
+            ...(i > 0 ? { exit: [["a", "b", "c"][i - 1]] } : {}),
+          })),
+        },
+      ];
+      d.assets = ["a", "b", "c", "d"].map((name) => ({
+        kind: "text" as const,
+        id: name,
+        content: name,
+      }));
+    });
+    expect(grammar(b).join("\n")).toMatch(/no persistent hero/);
+    // The showcase HAS a hero (headline spans 3 windows): no warning.
+    expect(grammar(draft()).join("\n")).not.toMatch(/no persistent hero/);
+  });
+
+  it("warns when full-frame imagery dominates the runtime (P10)", () => {
+    const b = draft((d) => {
+      // Feature the 1600x900 image at cover scale for a long final beat.
+      d.scenes[2].beats[0].placement = { x: 0.5, y: 0.5, scale: 1, zIndex: 0 };
+      d.scenes[2].beats[0].durationInFrames = 300;
+    });
+    expect(grammar(b).join("\n")).toMatch(/full-frame imagery covers/);
+    // The normal showcase (mountains at 0.55 scale) stays quiet.
+    expect(grammar(draft()).join("\n")).not.toMatch(/full-frame imagery/);
   });
 });
 

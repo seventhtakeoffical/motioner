@@ -1,39 +1,49 @@
 /**
- * The asset generation orchestrator (M16).
+ * The asset generation orchestrator.
  *
- * Consumes a Bible (the specification), finds every image asset carrying a
- * generationBrief, and satisfies the spec: generates the missing files into
- * public/<src> via a capability-matched provider, atomically, with retries,
- * provenance, and a report. Provider-agnostic by construction — everything
- * backend-specific lives behind the AssetProvider contract.
+ * Since the Asset Pipeline (stable architecture): providers produce RAW
+ * imagery only; every raw is archived write-once under assets/raw/ with
+ * its own provenance, then canonicalized by the Asset Pipeline into the
+ * production asset that lands in public/ — transparent, trimmed, padded,
+ * centered, exactly the Bible-declared dimensions, visually identical
+ * regardless of provider. The renderer's world is canonical-only.
  *
- * Guarantees this tool does NOT touch: the Bible is never modified (the
- * approval hash cannot move); the compiler and renderer never see this
- * code; generated files are static input artifacts, committed to git like
- * approved Bibles. Generation itself is not deterministic and doesn't
- * claim to be — but skip-if-exists freezes each artifact once produced, so
- * renders stay byte-stable until a human deliberately --force regenerates.
+ * Failure ownership: provider errors retry with backoff (as ever);
+ * canonicalization failures are CLASSIFIED (no-subject, multi-object,
+ * subject-cropped, environment-not-object…) and earn one full
+ * regeneration — a fresh raw — before landing in the report for a human.
+ *
+ * The Bible is never modified; the approval boundary never moves;
+ * generation remains honestly non-deterministic while every artifact it
+ * freezes is hash-chained: brief → raw → canonical.
  */
 
 import fs from "node:fs";
 import path from "node:path";
+import {
+  canonicalize,
+  ClassifiedFailure,
+  type CanonicalizeResult,
+  type RuntimeVersions,
+} from "../asset-pipeline/pipelines";
+import { sha256 } from "../asset-pipeline/framework";
 import { parseApproval, verifyApproval } from "../src/bible/approval";
 import type { Bible } from "../src/bible/schema";
 import { parseBible } from "../src/bible/validate";
 import { findSiblingApproval, loadJson } from "../review/workflow";
 import {
   deterministicSeed,
-  fnv32,
   ProviderError,
   type AssetProvider,
-  type GeneratedAsset,
+  type GenerationForm,
   type GenerationRequest,
 } from "./provider";
 import { selectProvider } from "./registry";
 
-export const GENERATOR_VERSION = "1.0.0";
+export const GENERATOR_VERSION = "2.0.0"; // 2.x: raw archive + Asset Pipeline
 const MAX_ATTEMPTS = 3;
-const ASPECT_TOLERANCE = 0.05;
+/** One extra full regeneration when the raw is classified unusable. */
+const MAX_REGENERATIONS = 1;
 
 export interface GenerateOptions {
   biblePath: string;
@@ -41,10 +51,12 @@ export interface GenerateOptions {
   draft?: boolean;
   /** Provider name; otherwise ASSET_PROVIDER env or first configured. */
   provider?: string;
-  /** Regenerate even when the file already exists. */
+  /** Regenerate even when the canonical asset already exists. */
   force?: boolean;
-  /** Root the Bible's src paths resolve under. */
+  /** Root the Bible's src paths resolve under (canonical assets). */
   publicDir?: string;
+  /** Root of the write-once raw archive. */
+  rawDir?: string;
   /** Backoff base for retryable failures (tests pass 0). */
   backoffMs?: number;
 }
@@ -62,76 +74,48 @@ export interface GenerateReport {
   source: "draft" | "approved";
   providerName?: string;
   items: ItemResult[];
-  /** The point of the tool: does every requested asset now exist on disk? */
+  /** Does every requested asset now exist canonically on disk? */
   satisfied: boolean;
 }
 
-interface ProvenanceEntry {
-  src: string;
+/** Raw provenance: what the provider made. Lives in assets/raw/. */
+interface RawProvenanceEntry {
   assetId: string;
+  rawPath: string;
+  src: string;
   provider: string;
   model: string;
+  form: GenerationForm;
+  targetWidth: number;
+  targetHeight: number;
   seed: number;
-  briefHash: string;
-  generatorVersion: string;
+  briefSha256: string;
   promptTemplateVersion: string;
-  /** Whether the Bible was approved when this file was generated. */
+  generatorVersion: string;
   source: "draft" | "approved";
-  format: string;
   generatedAt: string;
+  rawSha256: string;
+}
+
+/** Canonical provenance: how Motioner productionized it. Lives in public/. */
+interface CanonicalProvenanceEntry {
+  src: string;
+  assetId: string;
+  rawSha256: string;
+  pipeline: string;
+  fingerprint: string;
+  chain: CanonicalizeResult["chain"];
+  form: GenerationForm;
+  source: "draft" | "approved";
+  canonicalSha256: string;
+  normalizedAt: string;
+  /** Library stack that produced the canonical bytes (optional: absent in
+   * pre-audit manifests — readers must not require it). */
+  runtime?: RuntimeVersions;
 }
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-/** Read pixel dimensions from PNG/JPEG headers (enough for aspect checks). */
-export function imageDimensions(
-  bytes: Uint8Array,
-): { width: number; height: number } | undefined {
-  const buffer = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  // PNG: 8-byte signature, IHDR width/height at offsets 16/20.
-  if (buffer.length > 24 && buffer.readUInt32BE(0) === 0x89504e47) {
-    return { width: buffer.readUInt32BE(16), height: buffer.readUInt32BE(20) };
-  }
-  // JPEG: scan segments for a SOFn marker.
-  if (buffer.length > 4 && buffer[0] === 0xff && buffer[1] === 0xd8) {
-    let offset = 2;
-    while (offset + 9 < buffer.length) {
-      if (buffer[offset] !== 0xff) return undefined;
-      const marker = buffer[offset + 1];
-      const size = buffer.readUInt16BE(offset + 2);
-      if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc) {
-        return {
-          height: buffer.readUInt16BE(offset + 5),
-          width: buffer.readUInt16BE(offset + 7),
-        };
-      }
-      offset += 2 + size;
-    }
-  }
-  return undefined;
-}
-
-/** Reject empty output and aspect ratios that would distort in the frame. */
-function validateAsset(
-  asset: GeneratedAsset,
-  request: GenerationRequest,
-): string | null {
-  if (asset.bytes.length === 0) return "provider returned zero bytes";
-  const dims = imageDimensions(asset.bytes);
-  if (dims) {
-    const want = request.width / request.height;
-    const got = dims.width / dims.height;
-    if (Math.abs(got / want - 1) > ASPECT_TOLERANCE) {
-      return (
-        `aspect ratio mismatch: Bible declares ${request.width}x${request.height} ` +
-        `(${want.toFixed(2)}), provider produced ${dims.width}x${dims.height} ` +
-        `(${got.toFixed(2)}) — the renderer would distort it`
-      );
-    }
-  }
-  return null;
 }
 
 function writeAtomically(target: string, bytes: Uint8Array): void {
@@ -141,25 +125,36 @@ function writeAtomically(target: string, bytes: Uint8Array): void {
   fs.renameSync(tmp, target);
 }
 
-function updateManifest(
-  publicDir: string,
-  bibleId: string,
-  entry: ProvenanceEntry,
+function updateManifest<T extends object>(
+  manifestPath: string,
+  entry: T,
+  key: keyof T,
 ): void {
-  const manifestPath = path.join(publicDir, "generated", bibleId, "manifest.json");
-  let entries: ProvenanceEntry[] = [];
+  let entries: T[] = [];
   if (fs.existsSync(manifestPath)) {
+    // A manifest that exists but does not parse is corrupted provenance.
+    // That must be a loud, run-stopping error — silently starting from an
+    // empty array would erase the provenance of every other asset on the
+    // next write.
     try {
       entries = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
-    } catch {
-      entries = [];
+    } catch (error) {
+      throw new Error(
+        `Manifest "${manifestPath}" is corrupted and cannot be parsed ` +
+          `(${error instanceof Error ? error.message : error}). Refusing to ` +
+          `overwrite provenance — restore it from git before regenerating.`,
+      );
     }
   }
-  entries = entries.filter((existing) => existing.src !== entry.src);
+  entries = entries.filter((existing) => existing[key] !== entry[key]);
   entries.push(entry);
-  entries.sort((a, b) => (a.src < b.src ? -1 : 1));
-  fs.mkdirSync(path.dirname(manifestPath), { recursive: true });
-  fs.writeFileSync(manifestPath, JSON.stringify(entries, null, 2) + "\n");
+  entries.sort((a, b) => (String(a[key]) < String(b[key]) ? -1 : 1));
+  // Atomic like the assets themselves: a crash mid-write must never leave
+  // a half-written manifest behind.
+  writeAtomically(
+    manifestPath,
+    Buffer.from(JSON.stringify(entries, null, 2) + "\n"),
+  );
 }
 
 /** Resolve the Bible + how trusted it is (approved pair vs explicit draft). */
@@ -189,6 +184,7 @@ export async function runGeneration(
   injectedProvider?: AssetProvider,
 ): Promise<GenerateReport> {
   const publicDir = options.publicDir ?? "public";
+  const rawDir = options.rawDir ?? path.join("assets", "raw");
   const backoffMs = options.backoffMs ?? 1500;
   const { bible, source } = loadSpec(options);
 
@@ -210,10 +206,53 @@ export async function runGeneration(
   const publicRoot = path.resolve(publicDir);
   let provider: AssetProvider | undefined = injectedProvider;
 
+  // Deterministic form derivation: an image referenced by any scene's
+  // `plate` field is generated AS a plate; every other briefed image is a
+  // composable object. Pure interpretation of the Bible.
+  const plateAssetIds = new Set(
+    bible.scenes.map((scene) => scene.plate).filter(Boolean),
+  );
+
+  // Raw provenance for staleness checks: a canonical asset may only be
+  // skipped when the spec that produced it is unchanged. Without this, an
+  // edited brief would silently keep the old image — spec and asset
+  // diverging with no warning.
+  const rawManifestPath = path.join(rawDir, bible.id, "manifest.json");
+  let rawEntries: RawProvenanceEntry[] = [];
+  if (fs.existsSync(rawManifestPath)) {
+    try {
+      rawEntries = JSON.parse(fs.readFileSync(rawManifestPath, "utf8"));
+    } catch (error) {
+      throw new Error(
+        `Raw manifest "${rawManifestPath}" is corrupted and cannot be parsed ` +
+          `(${error instanceof Error ? error.message : error}). Refusing to ` +
+          `continue — restore it from git before regenerating.`,
+      );
+    }
+  }
+  const staleness = (
+    asset: Extract<Bible["assets"][number], { kind: "image" }>,
+    form: GenerationForm,
+  ): string | null => {
+    const previous = rawEntries.find((entry) => entry.assetId === asset.id);
+    if (!previous) return null; // pre-archive asset: nothing to compare
+    if (previous.briefSha256 !== sha256(asset.generationBrief as string)) {
+      return "generationBrief changed since the asset was generated";
+    }
+    if (previous.form !== form) {
+      return `usage changed: was generated as a ${previous.form}, now used as a ${form}`;
+    }
+    if (
+      previous.targetWidth !== asset.intrinsicWidth ||
+      previous.targetHeight !== asset.intrinsicHeight
+    ) {
+      return "declared dimensions changed since the asset was generated";
+    }
+    return null;
+  };
+
   for (const asset of requested) {
     const target = path.resolve(publicDir, asset.src);
-    // The src comes from a reviewed document, but a path that escapes
-    // public/ must still never be written.
     if (!target.startsWith(publicRoot + path.sep)) {
       report.items.push({
         assetId: asset.id,
@@ -225,12 +264,14 @@ export async function runGeneration(
       continue;
     }
 
-    if (fs.existsSync(target) && !options.force) {
+    const form: GenerationForm = plateAssetIds.has(asset.id) ? "plate" : "object";
+    const stale = staleness(asset, form);
+    if (fs.existsSync(target) && !options.force && !stale) {
       report.items.push({
         assetId: asset.id,
         src: asset.src,
         status: "skipped",
-        detail: "already exists (use --force to regenerate)",
+        detail: "canonical asset already exists and its spec is unchanged",
         attempts: 0,
       });
       continue;
@@ -241,7 +282,9 @@ export async function runGeneration(
 
     const request: GenerationRequest = {
       kind: "image",
+      form,
       brief: asset.generationBrief as string,
+      styleDirective: bible.visualStyle,
       width: asset.intrinsicWidth,
       height: asset.intrinsicHeight,
       assetId: asset.id,
@@ -251,45 +294,100 @@ export async function runGeneration(
     const prompt = provider.promptTemplate.build(request);
 
     let attempts = 0;
+    let regenerations = 0;
     let outcome: ItemResult | undefined;
-    while (attempts < MAX_ATTEMPTS) {
+    while (attempts < MAX_ATTEMPTS + MAX_REGENERATIONS) {
       attempts += 1;
       try {
         const generated = await provider.generate(request, prompt);
-        const invalid = validateAsset(generated, request);
-        if (invalid) {
-          outcome = {
-            assetId: asset.id,
-            src: asset.src,
-            status: "failed",
-            detail: invalid,
-            attempts,
-          };
-          break;
+        const rawBytes = Buffer.from(generated.bytes);
+        const rawSha = sha256(rawBytes);
+
+        // ---- Raw archive: write-once, hash-named, never overwritten ----
+        const rawName = `${asset.id}-${rawSha.slice(0, 8)}.${generated.format}`;
+        const rawTarget = path.join(rawDir, bible.id, rawName);
+        if (!fs.existsSync(rawTarget)) {
+          writeAtomically(rawTarget, rawBytes);
         }
-        writeAtomically(target, generated.bytes);
-        updateManifest(publicDir, bible.id, {
-          src: asset.src,
-          assetId: asset.id,
-          provider: provider.name,
-          model: generated.model,
-          seed: request.seed,
-          briefHash: fnv32(request.brief).toString(16).padStart(8, "0"),
-          generatorVersion: GENERATOR_VERSION,
-          promptTemplateVersion: provider.promptTemplate.version,
-          source,
-          format: generated.format,
-          generatedAt: new Date().toISOString(),
+        updateManifest<RawProvenanceEntry>(
+          path.join(rawDir, bible.id, "manifest.json"),
+          {
+            assetId: asset.id,
+            rawPath: rawName,
+            src: asset.src,
+            provider: provider.name,
+            model: generated.model,
+            form: request.form,
+            targetWidth: asset.intrinsicWidth,
+            targetHeight: asset.intrinsicHeight,
+            seed: request.seed,
+            briefSha256: sha256(request.brief),
+            promptTemplateVersion: provider.promptTemplate.version,
+            generatorVersion: GENERATOR_VERSION,
+            source,
+            generatedAt: new Date().toISOString(),
+            rawSha256: rawSha,
+          },
+          "assetId",
+        );
+
+        // ---- Canonicalization: the Asset Pipeline owns what lands here ----
+        const canonical = await canonicalize({
+          rawBytes,
+          form: request.form,
+          targetWidth: asset.intrinsicWidth,
+          targetHeight: asset.intrinsicHeight,
         });
+
+        writeAtomically(target, canonical.canonicalBytes);
+        updateManifest<CanonicalProvenanceEntry>(
+          path.join(publicDir, "generated", bible.id, "manifest.json"),
+          {
+            src: asset.src,
+            assetId: asset.id,
+            rawSha256: canonical.rawSha256,
+            pipeline: canonical.pipeline,
+            fingerprint: canonical.fingerprint,
+            chain: canonical.chain,
+            form: request.form,
+            source,
+            canonicalSha256: canonical.canonicalSha256,
+            normalizedAt: new Date().toISOString(),
+            runtime: canonical.runtime,
+          },
+          "src",
+        );
+
         outcome = {
           assetId: asset.id,
           src: asset.src,
           status: "generated",
-          detail: `${generated.model} via ${provider.name}`,
+          detail:
+            `${generated.model} via ${provider.name} → ${canonical.pipeline}` +
+            (stale ? ` — regenerated: ${stale}` : "") +
+            (canonical.warnings.length > 0
+              ? ` — ${canonical.warnings.length} pipeline warning(s): ${canonical.warnings.join("; ")}`
+              : ""),
           attempts,
         };
         break;
       } catch (error) {
+        if (error instanceof ClassifiedFailure) {
+          // The raw is archived but unusable as an asset. One fresh
+          // generation may fix it; after that, a human decides.
+          if (regenerations < MAX_REGENERATIONS) {
+            regenerations += 1;
+            continue;
+          }
+          outcome = {
+            assetId: asset.id,
+            src: asset.src,
+            status: "failed",
+            detail: `canonicalization: [${error.kind}] ${error.message} (raw archived for inspection)`,
+            attempts,
+          };
+          break;
+        }
         const retryable = error instanceof ProviderError && error.retryable;
         const message = error instanceof Error ? error.message : String(error);
         if (retryable && attempts < MAX_ATTEMPTS) {

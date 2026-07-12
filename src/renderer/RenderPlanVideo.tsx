@@ -4,6 +4,7 @@ import { createDefaultRecipeRegistry } from "../recipes";
 import type { RenderPlan, RenderPlanBeat, RenderPlanLayer } from "../render-plan";
 import type { StageTheme } from "../stage";
 import { AssetView } from "./AssetView";
+import { RENDERER_FONT_STACK } from "./fonts";
 
 /**
  * The renderer: the ONLY module in the project that knows Remotion exists.
@@ -59,7 +60,7 @@ const DraftWatermark: React.FC = () => (
         transform: "rotate(30deg)",
         backgroundColor: "#c0392b",
         color: "#ffffff",
-        fontFamily: "Helvetica, Arial, sans-serif",
+        fontFamily: RENDERER_FONT_STACK,
         fontSize: 22,
         fontWeight: 700,
         letterSpacing: 2,

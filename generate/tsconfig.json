@@ -1,9 +1,18 @@
 {
   "extends": "../tsconfig.json",
   "compilerOptions": {
-    "types": ["node"],
+    "types": [
+      "node"
+    ],
     "jsx": "react-jsx"
   },
-  "include": ["./**/*.ts", "../src/**/*.ts", "../review/**/*.ts"],
-  "exclude": []
+  "include": [
+    "./**/*.ts",
+    "../src/**/*.ts",
+    "../review/**/*.ts",
+    "../asset-pipeline/**/*.ts"
+  ],
+  "exclude": [
+    "../asset-pipeline/models"
+  ]
 }

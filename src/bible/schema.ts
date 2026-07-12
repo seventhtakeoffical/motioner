@@ -236,6 +236,15 @@ export const SceneSchema = z.object({
   // compiler — scenes are identified by `id`, not `title`.
   title: z.string().min(1),
 
+  // The World Plate (Sprint A, Visual Grammar P1/P3): the image asset this
+  // scene's world sits on. The compiler synthesizes it beneath every beat
+  // of the scene — it costs no narration beat, because the world is not
+  // "information". Consecutive scenes naming the SAME plate share a
+  // visually continuous world across the boundary. Usage, not identity:
+  // any image asset may serve as a plate; being referenced here is what
+  // makes it one.
+  plate: z.string().min(1).optional(),
+
   // A scene must contain at least one beat; an empty scene has no timeline
   // contribution and is almost certainly a drafting mistake.
   beats: z.array(BeatSchema).min(1),
@@ -260,6 +269,14 @@ export const BibleSchema = z.object({
   // reviewer can compare the draft against its source without needing a
   // separate system.
   sourceScript: z.string().min(1),
+
+  // The video's visual style directive (Sprint A, Visual Grammar P13 "one
+  // wardrobe"): a prose description of the illustration style every
+  // generated asset must share (e.g. "flat illustration, minimal
+  // gradients, soft muted colors, no photorealism"). Lives in the Bible —
+  // style is creative spec, so the approval hash covers it. The generator
+  // injects it into every prompt; the compiler ignores it.
+  visualStyle: z.string().min(1).optional(),
 
   // Global frame rate. Fixed once at the Bible level so every beat's
   // `durationInFrames` means the same thing throughout the whole video.

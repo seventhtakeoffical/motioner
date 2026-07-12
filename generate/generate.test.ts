@@ -7,13 +7,14 @@ import type { Bible } from "../src/bible/schema";
 import { approveDraft } from "../review/workflow";
 import {
   deterministicSeed,
-  explainerImageTemplate,
+  makeExplainerTemplate,
   ProviderError,
   type AssetProvider,
   type GenerationRequest,
 } from "./provider";
+import sharp from "sharp";
 import { selectProvider } from "./registry";
-import { imageDimensions, runGeneration, GENERATOR_VERSION } from "./run";
+import { runGeneration, GENERATOR_VERSION } from "./run";
 
 /**
  * M16 tests. Providers are faked in-memory — no network — so what's under
@@ -30,16 +31,22 @@ afterEach(() => {
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
-/** A minimal valid PNG header claiming the given dimensions. */
-function fakePng(width: number, height: number): Uint8Array {
-  const bytes = Buffer.alloc(64);
-  bytes.writeUInt32BE(0x89504e47, 0); // PNG signature (first half)
-  bytes.writeUInt32BE(0x0d0a1a0a, 4);
-  bytes.writeUInt32BE(13, 8); // IHDR length
-  bytes.write("IHDR", 12);
-  bytes.writeUInt32BE(width, 16);
-  bytes.writeUInt32BE(height, 20);
-  return bytes;
+/**
+ * A real PNG: an opaque colored square centered on a transparent canvas.
+ * Real transparency means alpha-extract passes through without the ML
+ * model — unit tests exercise the full pipeline, ONNX-free.
+ */
+async function fakePng(width: number, height: number): Promise<Uint8Array> {
+  const data = Buffer.alloc(width * height * 4);
+  const x0 = Math.floor(width * 0.3), x1 = Math.floor(width * 0.7);
+  const y0 = Math.floor(height * 0.3), y1 = Math.floor(height * 0.7);
+  for (let y = y0; y < y1; y++) {
+    for (let x = x0; x < x1; x++) {
+      const i = (y * width + x) * 4;
+      data[i] = 200; data[i + 1] = 120; data[i + 2] = 60; data[i + 3] = 255;
+    }
+  }
+  return sharp(data, { raw: { width, height, channels: 4 } }).png().toBuffer();
 }
 
 function fakeProvider(
@@ -47,20 +54,25 @@ function fakeProvider(
     onGenerate?: (req: GenerationRequest, prompt: string) => void;
     failures?: Array<{ retryable: boolean }>;
     dims?: [number, number];
+    transparent?: boolean;
   } = {},
 ): AssetProvider {
   const failures = [...(overrides.failures ?? [])];
+  const transparent = overrides.transparent ?? true;
   return {
     name: overrides.name ?? "fake",
     capabilities: overrides.capabilities ?? ["image"],
-    promptTemplate: overrides.promptTemplate ?? explainerImageTemplate,
+    supportsTransparentBackground: transparent,
+    promptTemplate:
+      overrides.promptTemplate ??
+      makeExplainerTemplate({ transparentBackground: transparent }),
     isConfigured: () => ({ ok: true }),
     async generate(req, prompt) {
       overrides.onGenerate?.(req, prompt);
       const failure = failures.shift();
       if (failure) throw new ProviderError("simulated failure", failure.retryable);
       const [w, h] = overrides.dims ?? [req.width, req.height];
-      return { bytes: fakePng(w, h), format: "png", model: "fake-model-1" };
+      return { bytes: await fakePng(w, h), format: "png", model: "fake-model-1" };
     },
   };
 }
@@ -83,10 +95,12 @@ function writeDraft(mutate?: (b: Bible) => void): string {
 }
 
 const publicDir = () => path.join(dir, "public");
+const rawDir = () => path.join(dir, "assets-raw");
 const opts = (biblePath: string, extra = {}) => ({
   biblePath,
   draft: true,
   publicDir: publicDir(),
+  rawDir: rawDir(),
   backoffMs: 0,
   ...extra,
 });
@@ -112,7 +126,7 @@ describe("spec loading: draft vs approved", () => {
       approvedAt: "2026-07-12T10:00:00.000Z",
     });
     const report = await runGeneration(
-      { biblePath: approved.biblePath, publicDir: publicDir() },
+      { biblePath: approved.biblePath, publicDir: publicDir(), rawDir: rawDir() },
       fakeProvider(),
     );
     expect(report.source).toBe("approved");
@@ -123,7 +137,7 @@ describe("spec loading: draft vs approved", () => {
     fs.writeFileSync(approved.biblePath, JSON.stringify(edited, null, 2));
     await expect(
       runGeneration(
-        { biblePath: approved.biblePath, publicDir: publicDir() },
+        { biblePath: approved.biblePath, publicDir: publicDir(), rawDir: rawDir() },
         fakeProvider(),
       ),
     ).rejects.toThrow(/changed since it was approved/);
@@ -143,6 +157,39 @@ describe("generation, skip, and force", () => {
 
     const third = await runGeneration(opts(draftPath, { force: true }), fakeProvider());
     expect(third.items[0].status).toBe("generated");
+  });
+
+  it("regenerates without --force when the spec changed (brief staleness)", async () => {
+    const draftPath = writeDraft();
+    await runGeneration(opts(draftPath), fakeProvider());
+
+    // Same spec → skipped, as ever.
+    const unchanged = await runGeneration(opts(draftPath), fakeProvider());
+    expect(unchanged.items[0].status).toBe("skipped");
+
+    // Edit the brief in the draft: the canonical asset is now stale and
+    // must be regenerated even without --force — an edited spec must never
+    // silently keep the old image.
+    const edited = JSON.parse(fs.readFileSync(draftPath, "utf8"));
+    const img = edited.assets.find(
+      (a: { id: string }) => a.id === "requested-one",
+    );
+    img.generationBrief = "A completely different subject.";
+    fs.writeFileSync(draftPath, JSON.stringify(edited, null, 2));
+
+    const report = await runGeneration(opts(draftPath), fakeProvider());
+    expect(report.items[0].status).toBe("generated");
+    expect(report.items[0].detail).toMatch(/regenerated: generationBrief changed/);
+  });
+
+  it("refuses to run over a corrupted manifest instead of silently resetting it", async () => {
+    const draftPath = writeDraft();
+    await runGeneration(opts(draftPath), fakeProvider());
+    const manifestPath = path.join(rawDir(), "gen-test/manifest.json");
+    fs.writeFileSync(manifestPath, "{not json — simulated crash damage");
+    await expect(
+      runGeneration(opts(draftPath, { force: true }), fakeProvider()),
+    ).rejects.toThrow(/corrupted.*restore it from git/s);
   });
 
   it("does nothing gracefully when the Bible requests no assets", async () => {
@@ -169,6 +216,67 @@ describe("prompt template layer", () => {
     // Seed is spec-derived and stable.
     expect(seen.seed).toBe(
       deterministicSeed("gen-test", "requested-one", "A tall library shelf, one glowing book."),
+    );
+  });
+});
+
+describe("the Object World (Sprint A)", () => {
+  it("derives form deterministically: plate-referenced images are plates, the rest objects", async () => {
+    const prompts = new Map<string, { form: string; prompt: string }>();
+    const provider = fakeProvider({
+      onGenerate: (req, prompt) =>
+        prompts.set(req.assetId, { form: req.form, prompt }),
+    });
+    const draftPath = writeDraft((b) => {
+      b.assets.push({
+        kind: "image",
+        id: "world",
+        src: "generated/gen-test/world.png",
+        intrinsicWidth: 1536,
+        intrinsicHeight: 1024,
+        generationBrief: "A soft dark gradient field.",
+      });
+      b.scenes[0].plate = "world";
+    });
+    await runGeneration(opts(draftPath), provider);
+
+    expect(prompts.get("world")?.form).toBe("plate");
+    expect(prompts.get("world")?.prompt).toContain("BACKGROUND PLATE");
+    expect(prompts.get("world")?.prompt).toContain("no focal subject");
+
+    expect(prompts.get("requested-one")?.form).toBe("object");
+    expect(prompts.get("requested-one")?.prompt).toContain("ISOLATED SUBJECT");
+    expect(prompts.get("requested-one")?.prompt).toContain("no environment");
+  });
+
+  it("transparency is the provider's implementation detail", async () => {
+    let prompt = "";
+    await runGeneration(
+      opts(writeDraft()),
+      fakeProvider({ transparent: true, onGenerate: (_r, p) => (prompt = p) }),
+    );
+    expect(prompt).toContain("Fully transparent background");
+
+    fs.rmSync(publicDir(), { recursive: true, force: true });
+    await runGeneration(
+      opts(writeDraft()),
+      fakeProvider({ transparent: false, onGenerate: (_r, p) => (prompt = p) }),
+    );
+    expect(prompt).toContain("#111111");
+    expect(prompt).not.toContain("Fully transparent");
+  });
+
+  it("injects the Bible's visualStyle into every prompt (one wardrobe)", async () => {
+    let prompt = "";
+    const draftPath = writeDraft((b) => {
+      b.visualStyle = "flat vector illustration, muted warm palette";
+    });
+    await runGeneration(
+      opts(draftPath),
+      fakeProvider({ onGenerate: (_r, p) => (prompt = p) }),
+    );
+    expect(prompt).toContain(
+      "Visual style for the entire video, apply strictly: flat vector illustration, muted warm palette",
     );
   });
 });
@@ -201,13 +309,19 @@ describe("retries", () => {
   });
 });
 
-describe("validation and safety", () => {
-  it("rejects output whose aspect ratio would distort in the declared box", async () => {
-    const provider = fakeProvider({ dims: [1024, 1024] }); // spec wants 1536x1024
+describe("canonicalization (the Asset Pipeline owns production assets)", () => {
+  it("canonical output has exactly the declared dimensions, whatever the provider sent", async () => {
+    // Provider returns a square raw; the Bible declares 1536x1024. The old
+    // aspect *validation* is gone — the pipeline MAKES it correct.
+    const provider = fakeProvider({ dims: [1024, 1024] });
     const report = await runGeneration(opts(writeDraft()), provider);
-    expect(report.items[0].status).toBe("failed");
-    expect(report.items[0].detail).toMatch(/aspect ratio mismatch/);
-    expect(report.satisfied).toBe(false);
+    expect(report.items[0].status).toBe("generated");
+    const meta = await sharp(
+      path.join(publicDir(), "generated/gen-test/one.png"),
+    ).metadata();
+    expect(meta.width).toBe(1536);
+    expect(meta.height).toBe(1024);
+    expect(meta.hasAlpha).toBe(true);
   });
 
   it("refuses src paths escaping the public directory", async () => {
@@ -220,34 +334,87 @@ describe("validation and safety", () => {
     expect(report.items[0].detail).toMatch(/escapes the public directory/);
   });
 
-  it("parses PNG and JPEG dimensions", () => {
-    expect(imageDimensions(fakePng(640, 480))).toEqual({ width: 640, height: 480 });
-    expect(imageDimensions(new Uint8Array([1, 2, 3]))).toBeUndefined();
+  it("regenerates once on a classified failure, then reports for a human", async () => {
+    // A raw with real alpha but ~100% coverage: an environment, not an
+    // object — classified in the alpha-carrying passthrough path, no ML.
+    const data = Buffer.alloc(64 * 64 * 4, 255);
+    data[3] = 0; // one transparent pixel so sourceHadAlpha is true
+    const solid = await sharp(data, {
+      raw: { width: 64, height: 64, channels: 4 },
+    })
+      .png()
+      .toBuffer();
+    let calls = 0;
+    const provider = fakeProvider({});
+    provider.generate = async () => {
+      calls++;
+      return { bytes: solid, format: "png", model: "fake-model-1" };
+    };
+    const report = await runGeneration(opts(writeDraft()), provider);
+    expect(report.items[0].status).toBe("failed");
+    expect(report.items[0].detail).toMatch(/environment-not-object|no-subject/);
+    expect(calls).toBe(2); // original + one regeneration
+    expect(report.satisfied).toBe(false);
   });
 });
 
-describe("provenance", () => {
-  it("records provider, model, seed, versions, and draft/approved source", async () => {
+describe("provenance: raw + canonical, hash-chained", () => {
+  it("archives the raw with its provenance and links the canonical to it", async () => {
     await runGeneration(opts(writeDraft()), fakeProvider());
-    const manifest = JSON.parse(
+
+    const raw = JSON.parse(
+      fs.readFileSync(path.join(rawDir(), "gen-test/manifest.json"), "utf8"),
+    );
+    expect(raw).toHaveLength(1);
+    expect(raw[0]).toMatchObject({
+      assetId: "requested-one",
+      src: "generated/gen-test/one.png",
+      provider: "fake",
+      model: "fake-model-1",
+      form: "object",
+      targetWidth: 1536,
+      targetHeight: 1024,
+      promptTemplateVersion: "object-world-v1",
+      generatorVersion: GENERATOR_VERSION,
+      source: "draft",
+    });
+    expect(raw[0].rawSha256).toMatch(/^[0-9a-f]{64}$/);
+    expect(raw[0].briefSha256).toMatch(/^[0-9a-f]{64}$/);
+    // The raw file itself is archived, hash-named.
+    expect(fs.existsSync(path.join(rawDir(), "gen-test", raw[0].rawPath))).toBe(true);
+
+    const canonical = JSON.parse(
       fs.readFileSync(
         path.join(publicDir(), "generated/gen-test/manifest.json"),
         "utf8",
       ),
     );
-    expect(manifest).toHaveLength(1);
-    expect(manifest[0]).toMatchObject({
+    expect(canonical).toHaveLength(1);
+    expect(canonical[0]).toMatchObject({
       src: "generated/gen-test/one.png",
       assetId: "requested-one",
-      provider: "fake",
-      model: "fake-model-1",
-      generatorVersion: GENERATOR_VERSION,
-      promptTemplateVersion: explainerImageTemplate.version,
+      pipeline: "object-v1",
+      form: "object",
       source: "draft",
-      format: "png",
+      rawSha256: raw[0].rawSha256, // the chain link
     });
-    expect(typeof manifest[0].seed).toBe("number");
-    expect(manifest[0].briefHash).toMatch(/^[0-9a-f]{8}$/);
+    expect(canonical[0].fingerprint).toMatch(/^[0-9a-f]{64}$/);
+    expect(canonical[0].canonicalSha256).toMatch(/^[0-9a-f]{64}$/);
+    // Runtime stack recorded (audit #2): explains byte differences between
+    // re-normalizations of the same raw with the same chain, years apart.
+    expect(canonical[0].runtime.node).toBe(process.version);
+    expect(canonical[0].runtime.sharp).toMatch(/^\d+\.\d+\.\d+/);
+    expect(canonical[0].runtime.libvips).toMatch(/^\d+\.\d+/);
+    expect(canonical[0].runtime.onnxruntime).toMatch(/^\d+\.\d+\.\d+/);
+    expect(canonical[0].chain.map((c: { pass: string }) => c.pass)).toEqual([
+      "decode",
+      "alpha-extract",
+      "keep-largest-component",
+      "repair-accidental-holes",
+      "trim",
+      "pad-center",
+      "encode-canonical",
+    ]);
   });
 });
 

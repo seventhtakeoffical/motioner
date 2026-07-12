@@ -20,6 +20,9 @@ export const showcaseBible: Bible = {
   id: "showcase-m8-m9",
   title: "Asset & recipe showcase",
   createdAt: "2026-07-11T00:00:00.000Z",
+  visualStyle:
+    "flat modern illustration, minimal gradients, soft shadows, muted " +
+    "palette on a dark stage, no photorealism",
   sourceScript:
     "A tour of what the pipeline can stage: typed-on headlines, drifting " +
     "imagery, charts that draw themselves, icons that pop, and captions " +

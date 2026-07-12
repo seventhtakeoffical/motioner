@@ -15,6 +15,7 @@
  * — not as policy, but structurally.
  */
 
+import { runModels, runRenormalize } from "../asset-pipeline/cli";
 import { runAuthor } from "../author/author";
 import { runGenerate } from "../generate/cli";
 import { runReviewCli } from "../review/cli";
@@ -41,7 +42,15 @@ Usage:
       generationBrief into public/generated/<id>/ via an asset provider
       (nano-banana, gpt-image, ...). Approved pair auto-detected; --draft
       acknowledges generating from an unapproved draft. Never modifies the
-      Bible. Generated files are production inputs — commit them.
+      Bible. Raws archive to assets/raw/; canonical assets land in public/.
+      Both are production inputs — commit them.
+
+  npm run pipeline -- models
+      Install + pin the Asset Pipeline's segmentation models.
+
+  npm run pipeline -- renormalize <bibleId> [--all]
+      Re-run canonicalization from archived raws (zero generation spend)
+      for assets whose pipeline fingerprint is stale — or all of them.
 
   npm run pipeline -- render <bible.json> <approval.json> [--out <file.mp4>]
                      [--frames <a-b>]
@@ -86,6 +95,14 @@ async function main() {
 
     case "generate":
       await runGenerate(rest);
+      return;
+
+    case "models":
+      await runModels();
+      return;
+
+    case "renormalize":
+      await runRenormalize(rest);
       return;
 
     case "render": {

@@ -8,10 +8,13 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.111.0",
     "@remotion/cli": "4.0.487",
+    "@remotion/fonts": "^4.0.487",
     "@remotion/media": "^4.0.487",
+    "onnxruntime-node": "^1.27.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "remotion": "4.0.487",
+    "sharp": "^0.35.3",
     "zod": "^3.24.1"
   },
   "devDependencies": {
@@ -29,11 +32,14 @@
     "dev": "remotion studio",
     "build": "remotion bundle",
     "upgrade": "remotion upgrade",
-    "lint": "eslint src && tsc && tsc -p author && tsc -p review && tsc -p pipeline && tsc -p generate",
+    "lint": "eslint src && tsc && tsc -p author && tsc -p review && tsc -p pipeline && tsc -p generate && tsc -p asset-pipeline",
     "test": "vitest run",
     "author": "tsx author/author.ts",
     "review": "tsx review/cli.ts",
     "pipeline": "tsx pipeline/cli.ts",
     "generate": "tsx generate/cli.ts"
+  },
+  "allowScripts": {
+    "onnxruntime-node@1.27.0": true
   }
 }

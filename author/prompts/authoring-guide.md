@@ -14,6 +14,43 @@ generates those from the live code so they cannot drift.
 - Theme: dark stage — background `#111111`, foreground `#ffffff`. Set a
   `theme` directive only when the script's tone genuinely calls for a
   palette change.
+- ALWAYS write a `visualStyle` directive (one wardrobe for the whole
+  video): a short prose spec every generated image must share, e.g.
+  "flat vector illustration, minimal gradients, subtle soft shadows,
+  muted warm palette, no photorealism".
+
+## The world model (this is the core of good drafting)
+
+A video is NOT a sequence of pictures. It is a WORLD that the viewer
+inhabits, populated by objects that enter, persist, and leave.
+
+1. **Every scene gets a world plate.** Set the scene's `plate` field to an
+   image asset (usually one plate reused by every scene of the video —
+   same plate id across scenes = a continuous world). The plate costs no
+   beat and sits beneath everything automatically. Its brief must describe
+   ATMOSPHERE, not content: subtle, low-contrast, empty negative space,
+   no focal subject.
+2. **One hero object.** The script's central thing (the phone, the book,
+   the machine) is a requested image that enters early, persists across
+   many beats — re-feature it in each new scene — and anchors the story.
+3. **Supporting objects** enter one per beat beside the hero, sized as
+   inhabitants: for a 1536-wide asset, placement scale 0.15–0.35 (≈ 20–40%
+   of frame width). Never more than ~7 elements on stage at once.
+4. **Labels, not prose.** Text assets are 1–4 word labels placed near what
+   they name, or one huge stat/punchline. Never a sentence — the viewer is
+   already listening to the narration.
+5. **Full-frame is a held breath.** Scaling an image to cover the frame is
+   a deliberate, rare punctuation moment (a beat or two, ideally with
+   pan-zoom drift) — never the default shot. There is no "full-frame
+   asset"; it is purely a placement decision.
+6. **Layout carries meaning.** Size = importance; center = focus;
+   proximity = relation; a row with equal spacing = enumeration ("three
+   companies" → three objects in a row). Leave generous empty space — a
+   frame more than half full is crowded.
+
+Object briefs must describe ISOLATED SUBJECTS: "A smartphone, slightly
+angled" — not "A smartphone on a wooden desk in warm light". The
+environment belongs to the plate; the object must composite anywhere.
 
 ## Pacing math
 
@@ -49,28 +86,13 @@ is 60–120 frames.
   a scene boundary — the compiler will fade out the old set automatically
   during your new scene's first beat.
 
-## Show the metaphor — don't caption it
+## Motion explains; it never decorates
 
-The weakest draft is a wall of text cards paraphrasing the narration the
-viewer is already hearing. Production feedback is explicit on this:
-
-- **Every scene should have a visual anchor that is not text** — an icon,
-  a chart, or a requested image. Reach for a text asset only for the
-  punchline the viewer should read (a key term, a number, the takeaway),
-  not for restating narration.
-- When the script describes something concrete (a place, an object, a
-  process), prefer an **Asset Request**: declare an image with a
-  `generationBrief` that an image generator could execute verbatim —
-  subject, composition, camera angle, style, mood, and "no text in the
-  image". One strong requested image beats three text cards.
-- **Cap typed on-screen copy at ~8 words.** Long typewriter passages force
-  the viewer to read and listen simultaneously; if the line matters that
-  much, let the narration carry it and show a shorter fragment.
-- Match motion to the words: a thing that "drops" enters with
-  `slide-in` + `{"direction": "top"}`; a thing that is "ripped out" or
-  "thrown away" exits via `exitRecipeName: "exit-slide"` with a fitting
-  direction. When narration names a motion, the choreography should
-  perform it.
+Match motion to the words: a thing that "drops" enters with
+`slide-in` + `{"direction": "top"}`; a thing that is "ripped out" or
+"thrown away" exits via `exitRecipeName: "exit-slide"` with a fitting
+direction. When narration names a motion, the choreography should perform
+it — and motion that enacts nothing spoken should not exist.
 
 ## Choosing recipes
 

@@ -15,6 +15,7 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { sha256 } from "../asset-pipeline/framework";
 import { parseBible } from "../src/bible/validate";
 import { compileApprovedBible, compileBible } from "../src/compiler";
 import { createDefaultRecipeRegistry } from "../src/recipes";
@@ -75,6 +76,88 @@ export function compileDraftPlan(biblePath: string): RenderPlan {
   return compileBible(bible, createDefaultRecipeRegistry());
 }
 
+/**
+ * Preflight (production audit SHOULD-FIX #1): verify every media asset the
+ * plan will load BEFORE spawning Remotion, so failures are clear, early
+ * errors instead of delayRender timeouts deep inside a render — and so an
+ * approved Bible whose asset files drifted since generation is caught
+ * loudly (the approval hash covers the spec; this check covers the pixels).
+ *
+ * Rules per manifest src:
+ *  - remote URLs are skipped (the renderer fetches those itself);
+ *  - the file must exist under public/;
+ *  - if a canonical provenance manifest sits beside the asset, the file's
+ *    sha256 must match its recorded canonicalSha256 — a mismatch means the
+ *    asset changed after generation.
+ */
+export function preflightPlanAssets(
+  plan: RenderPlan,
+  publicDir = "public",
+): void {
+  const problems: string[] = [];
+  const manifestCache = new Map<string, Map<string, string>>(); // dir -> src -> sha
+
+  const canonicalShaFor = (src: string): string | undefined => {
+    const dir = path.dirname(src);
+    let entries = manifestCache.get(dir);
+    if (!entries) {
+      entries = new Map();
+      const manifestPath = path.join(publicDir, dir, "manifest.json");
+      if (fs.existsSync(manifestPath)) {
+        let parsed: Array<{ src?: string; canonicalSha256?: string }>;
+        try {
+          parsed = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+        } catch (error) {
+          throw new Error(
+            `Provenance manifest "${manifestPath}" is corrupted and cannot ` +
+              `be parsed (${error instanceof Error ? error.message : error}). ` +
+              `Restore it from git before rendering.`,
+          );
+        }
+        for (const entry of parsed) {
+          if (entry.src && entry.canonicalSha256) {
+            entries.set(entry.src, entry.canonicalSha256);
+          }
+        }
+      }
+      manifestCache.set(dir, entries);
+    }
+    return entries.get(src);
+  };
+
+  for (const item of plan.manifest) {
+    if (item.src.startsWith("http://") || item.src.startsWith("https://")) {
+      continue;
+    }
+    const file = path.join(publicDir, item.src);
+    if (!fs.existsSync(file)) {
+      problems.push(
+        `MISSING: "${item.src}" (${item.kind}) — generate it ` +
+          `(pipeline generate) or place the file under ${publicDir}/.`,
+      );
+      continue;
+    }
+    const expected = canonicalShaFor(item.src);
+    if (expected) {
+      const actual = sha256(fs.readFileSync(file));
+      if (actual !== expected) {
+        problems.push(
+          `DRIFTED: "${item.src}" — file hash ${actual.slice(0, 12)}… does not ` +
+            `match its provenance (${expected.slice(0, 12)}…). The asset ` +
+            `changed after generation: regenerate it or restore it from git.`,
+        );
+      }
+    }
+  }
+
+  if (problems.length > 0) {
+    throw new Error(
+      `Asset preflight failed — refusing to render:\n` +
+        problems.map((p) => `  - ${p}`).join("\n"),
+    );
+  }
+}
+
 function withPropsFile<T>(
   plan: RenderPlan,
   fn: (propsPath: string) => T,
@@ -117,6 +200,7 @@ export interface RenderOptions {
 
 export function renderVideo(options: RenderOptions): string {
   const plan = compilePlanFromFiles(options.biblePath, options.approvalPath);
+  preflightPlanAssets(plan);
   const outPath =
     options.outPath ??
     path.join("out", `${path.basename(options.biblePath, ".bible.json")}.mp4`);
@@ -147,6 +231,7 @@ export function renderVideo(options: RenderOptions): string {
 
 export function previewInStudio(biblePath: string, approvalPath: string): void {
   const plan = compilePlanFromFiles(biblePath, approvalPath);
+  preflightPlanAssets(plan);
   console.log(
     `Plan compiled — opening Studio with the approved plan as input props.`,
   );
@@ -157,6 +242,7 @@ export function previewInStudio(biblePath: string, approvalPath: string): void {
 
 export function previewDraftInStudio(biblePath: string): void {
   const plan = compileDraftPlan(biblePath);
+  preflightPlanAssets(plan);
   console.log(
     `DRAFT plan compiled — opening Studio with a watermarked draft preview.\n` +
       `This preview proves nothing about approval: rendering still requires ` +

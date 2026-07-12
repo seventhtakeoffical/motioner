@@ -60,6 +60,81 @@ describe("determinism (M6)", () => {
   });
 });
 
+describe("world plates (Sprint A)", () => {
+  const plated = (mutate?: (b: Bible) => void) =>
+    bible((b) => {
+      b.assets.push({
+        kind: "image",
+        id: "world-bg",
+        src: "bg.png",
+        intrinsicWidth: 1600,
+        intrinsicHeight: 900,
+      });
+      b.scenes[0].plate = "world-bg";
+      // A second beat so the plate's whole-scene presence is observable.
+      b.scenes[0].beats.push({
+        ...structuredClone(b.scenes[0].beats[0]),
+        id: "beat-second",
+      });
+      mutate?.(b);
+    });
+
+  it("synthesizes a cover-scaled plate layer beneath every window of the scene", () => {
+    const plan = compile(plated());
+    for (const window of plan.beats) {
+      const plate = window.layers[0];
+      expect(plate.role).toBe("plate");
+      expect(plate.entityId).toBe("world-bg");
+      expect(plate.recipeName).toBe("hold");
+      // Cover the 1280x720 frame with a 1600x900 asset: scale 0.8.
+      expect(plate.placement.scale).toBeCloseTo(0.8);
+      expect(plate.placement.zIndex).toBeLessThan(-100000);
+    }
+  });
+
+  it("the same plate on consecutive scenes spans both; plates are never struck", () => {
+    const plan = compile(
+      plated((b) => {
+        b.scenes.push({
+          id: "scene-two",
+          title: "Two",
+          plate: "world-bg",
+          beats: [structuredClone(b.scenes[0].beats[0])],
+        });
+      }),
+    );
+    expect(plan.beats).toHaveLength(3);
+    for (const window of plan.beats) {
+      expect(window.layers[0].role).toBe("plate");
+    }
+    // The plate never enters the Stage, so the scene boundary emits no
+    // exit layer for it — the world is continuous.
+    const boundaryWindow = plan.beats[2];
+    expect(
+      boundaryWindow.layers.filter(
+        (l) => l.entityId === "world-bg" && l.role === "exit",
+      ),
+    ).toHaveLength(0);
+  });
+
+  it("compiles plated Bibles byte-identically across runs", () => {
+    const input = plated();
+    const first = JSON.stringify(compile(input));
+    for (let i = 0; i < 5; i++) {
+      expect(JSON.stringify(compile(structuredClone(input)))).toBe(first);
+    }
+  });
+
+  it("rejects unknown plate ids and non-image plates", () => {
+    expect(() =>
+      compile(bible((b) => (b.scenes[0].plate = "ghost"))),
+    ).toThrow(/plate references asset "ghost"/);
+    expect(() =>
+      compile(bible((b) => (b.scenes[0].plate = "headline"))),
+    ).toThrow(/is a text asset — plates must be images/);
+  });
+});
+
 describe("value isolation (staff-review issue #1)", () => {
   it("shares no references with the input Bible, stage defaults, or other plans", () => {
     const input = bible();

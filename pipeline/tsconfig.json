@@ -11,7 +11,10 @@
     "../src/**/*.ts",
     "../author/**/*.ts",
     "../review/**/*.ts",
-    "../generate/**/*.ts"
+    "../generate/**/*.ts",
+    "../asset-pipeline/**/*.ts"
   ],
-  "exclude": []
+  "exclude": [
+    "../asset-pipeline/models"
+  ]
 }

@@ -22,6 +22,7 @@ rejected.
 | `title` | string | Human-readable video title. |
 | `createdAt` | ISO 8601 datetime string | Use the exact timestamp given in the task input. |
 | `sourceScript` | string | The raw input script, copied VERBATIM — reviewers diff your draft against it. Do not summarize or edit it. |
+| `visualStyle` | string | REQUIRED in practice: the one wardrobe every generated image shares (e.g. "flat vector illustration, muted warm palette, no photorealism"). Injected into every generation automatically. |
 | `fps` | positive integer | Frames per second. Use the authoring guide's default unless told otherwise. |
 | `width`, `height` | positive integers | Output resolution. |
 | `assets` | array, min 1 | Every asset the video uses, declared once, referenced by beats via id. |
@@ -38,7 +39,7 @@ slug), and kind-specific fields:
 | `caption` | `content: string` | Lower-third text; renderers style it as a strip. |
 | `chart` | `chartType: "bar"`, `data: [{label, value}]` (min 1 entry, values ≥ 0 and finite) | Data embedded whole — numbers must come from the script. `"bar"` is the only chart type. |
 | `icon` | `viewBox: string`, `path: string` | Inline SVG geometry (e.g. `viewBox: "0 0 24 24"` and an SVG path `d` string). You author the geometry — keep shapes simple and bold. |
-| `image` | `src`, `intrinsicWidth`, `intrinsicHeight`, optional `generationBrief` | Either `src` is a file from the task's media list, OR this is an **Asset Request**: `src` under the task's `generated/…` path + a `generationBrief` (the generation spec: subject, composition, style, mood; state "no text in image" — on-screen words belong to text assets). For requests, choose sensible dimensions (e.g. 1536x1024 for a wide illustration). |
+| `image` | `src`, `intrinsicWidth`, `intrinsicHeight`, optional `generationBrief` | Either `src` is a file from the task's media list, OR this is an **Asset Request**: `src` under the task's `generated/…` path + a `generationBrief` (the generation spec: subject, composition, style, mood; state "no text in image" — on-screen words belong to text assets). For requests, choose sensible dimensions (e.g. 1536x1024 for a wide illustration). Whether an image is generated as a composable OBJECT or a world PLATE is derived from usage: referenced by a scene's `plate` → plate; otherwise → object. Write briefs accordingly. |
 | `video` | `src`, `intrinsicWidth`, `intrinsicHeight`, `durationInSeconds` | ONLY when the task input lists an available video file. |
 | `audio` | `src`, `durationInSeconds` | ONLY when the task input lists an available audio file. |
 
@@ -48,6 +49,7 @@ slug), and kind-specific fields:
 |---|---|---|
 | `id` | string | Unique kebab-case slug (e.g. `"scene-2-problem"`). Must be unique across the whole Bible. |
 | `title` | string | Human-readable label for the scene map. |
+| `plate` | optional string | The scene's WORLD PLATE: an image asset id rendered beneath every beat of the scene, costing no beat. Same plate id on consecutive scenes = one continuous world. Its brief must describe atmosphere (subtle, low-contrast, no focal subject). |
 | `beats` | array, min 1 | The scene's beats, in playback order. |
 
 A scene is a staging unit: **crossing a scene boundary automatically strikes

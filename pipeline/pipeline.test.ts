@@ -7,8 +7,15 @@ import type { Bible } from "../src/bible/schema";
 import { parseBible } from "../src/bible/validate";
 import { compileBible } from "../src/compiler";
 import { createDefaultRecipeRegistry } from "../src/recipes";
+import { sha256 } from "../asset-pipeline/framework";
+import type { RenderPlan } from "../src/render-plan";
 import { approveDraft, reviewFile } from "../review/workflow";
-import { compileDraftPlan, compilePlanFromFiles, readJson } from "./run";
+import {
+  compileDraftPlan,
+  compilePlanFromFiles,
+  preflightPlanAssets,
+  readJson,
+} from "./run";
 
 /**
  * M14 end-to-end tests: the complete production workflow, on disk, through
@@ -134,6 +141,71 @@ describe("draft preview (M15 — sighted review)", () => {
     expect(() => compileDraftPlan(path.join(dir, "missing.json"))).toThrow(
       /Cannot read the draft Bible file/,
     );
+  });
+});
+
+describe("asset preflight (audit SHOULD-FIX #1)", () => {
+  const planWith = (src: string): RenderPlan =>
+    ({
+      fps: 30,
+      width: 1280,
+      height: 720,
+      totalDurationInFrames: 1,
+      scenes: [],
+      beats: [],
+      manifest: [{ kind: "image", src }],
+    }) as unknown as RenderPlan;
+
+  const pub = () => path.join(dir, "public");
+
+  it("passes when the file exists and no provenance manifest is present", () => {
+    fs.mkdirSync(pub(), { recursive: true });
+    fs.writeFileSync(path.join(pub(), "loose.png"), "pixels");
+    expect(() => preflightPlanAssets(planWith("loose.png"), pub())).not.toThrow();
+  });
+
+  it("fails loudly on missing files, naming them", () => {
+    fs.mkdirSync(pub(), { recursive: true });
+    expect(() => preflightPlanAssets(planWith("generated/x/gone.png"), pub())).toThrow(
+      /preflight failed[\s\S]*MISSING: "generated\/x\/gone\.png"/,
+    );
+  });
+
+  it("verifies canonical hashes and catches post-generation drift", () => {
+    const assetDir = path.join(pub(), "generated/x");
+    fs.mkdirSync(assetDir, { recursive: true });
+    const bytes = Buffer.from("canonical pixels");
+    fs.writeFileSync(path.join(assetDir, "a.png"), bytes);
+    fs.writeFileSync(
+      path.join(assetDir, "manifest.json"),
+      JSON.stringify([
+        { src: "generated/x/a.png", canonicalSha256: sha256(bytes) },
+      ]),
+    );
+    // Matching hash: passes.
+    expect(() =>
+      preflightPlanAssets(planWith("generated/x/a.png"), pub()),
+    ).not.toThrow();
+    // The asset drifts after generation: refused.
+    fs.writeFileSync(path.join(assetDir, "a.png"), "tampered pixels");
+    expect(() =>
+      preflightPlanAssets(planWith("generated/x/a.png"), pub()),
+    ).toThrow(/DRIFTED: "generated\/x\/a\.png"[\s\S]*regenerate it or restore/);
+  });
+
+  it("skips remote URLs and refuses corrupted provenance manifests", () => {
+    fs.mkdirSync(pub(), { recursive: true });
+    expect(() =>
+      preflightPlanAssets(planWith("https://example.com/remote.png"), pub()),
+    ).not.toThrow();
+
+    const assetDir = path.join(pub(), "generated/y");
+    fs.mkdirSync(assetDir, { recursive: true });
+    fs.writeFileSync(path.join(assetDir, "b.png"), "pixels");
+    fs.writeFileSync(path.join(assetDir, "manifest.json"), "{corrupt");
+    expect(() =>
+      preflightPlanAssets(planWith("generated/y/b.png"), pub()),
+    ).toThrow(/corrupted.*Restore it from git/s);
   });
 });
 

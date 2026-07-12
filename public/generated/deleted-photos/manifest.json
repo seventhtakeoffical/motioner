@@ -1,67 +1,393 @@
 [
   {
-    "src": "generated/deleted-photos/book-on-shelf.png",
-    "assetId": "book-on-shelf",
-    "provider": "nano-banana",
-    "model": "gemini-2.5-flash-image",
-    "seed": 3841249936,
-    "briefHash": "388c5a61",
-    "generatorVersion": "1.0.0",
-    "promptTemplateVersion": "explainer-image-v1",
-    "source": "draft",
-    "format": "png",
-    "generatedAt": "2026-07-12T03:54:28.875Z"
-  },
-  {
     "src": "generated/deleted-photos/catalog-card.png",
     "assetId": "catalog-card",
-    "provider": "nano-banana",
-    "model": "gemini-2.5-flash-image",
-    "seed": 2341122603,
-    "briefHash": "b10f8a7a",
-    "generatorVersion": "1.0.0",
-    "promptTemplateVersion": "explainer-image-v1",
+    "rawSha256": "e51016bddddbb40e386e28883f6d9c8e018ff53b57d4d6b13910234e0e4cc47a",
+    "pipeline": "object-v1",
+    "fingerprint": "997bdc303a0a42ff3d0f5585a79a8e4c65641bae3c730f99265f03f4e8b4768a",
+    "chain": [
+      {
+        "pass": "decode",
+        "version": "1.0.0",
+        "params": {}
+      },
+      {
+        "pass": "alpha-extract",
+        "version": "1.0.0",
+        "params": {
+          "model": "isnet"
+        }
+      },
+      {
+        "pass": "keep-largest-component",
+        "version": "1.0.0",
+        "params": {
+          "satelliteMaxFraction": 0.05
+        }
+      },
+      {
+        "pass": "repair-accidental-holes",
+        "version": "1.0.0",
+        "params": {
+          "mode": "auto",
+          "maxHoleFraction": 0.001
+        }
+      },
+      {
+        "pass": "trim",
+        "version": "1.0.0",
+        "params": {
+          "alphaThreshold": 2
+        }
+      },
+      {
+        "pass": "pad-center",
+        "version": "1.0.0",
+        "params": {
+          "paddingFraction": 0.04,
+          "targetWidth": 1024,
+          "targetHeight": 1024
+        }
+      },
+      {
+        "pass": "encode-canonical",
+        "version": "1.0.0",
+        "params": {
+          "compressionLevel": 9
+        }
+      }
+    ],
+    "form": "object",
     "source": "draft",
-    "format": "png",
-    "generatedAt": "2026-07-12T03:54:37.365Z"
+    "canonicalSha256": "b27c51ec5fa9d136c71fa1f00a5603024f11f47fbd9b3892835c380ea741dd0a",
+    "normalizedAt": "2026-07-12T08:23:37.557Z"
   },
   {
-    "src": "generated/deleted-photos/library.png",
-    "assetId": "library",
-    "provider": "nano-banana",
-    "model": "gemini-2.5-flash-image",
-    "seed": 698353351,
-    "briefHash": "d5bf780b",
-    "generatorVersion": "1.0.0",
-    "promptTemplateVersion": "explainer-image-v1",
+    "src": "generated/deleted-photos/hero-phone.png",
+    "assetId": "hero-phone",
+    "rawSha256": "2e28d86075acb4285b082c34cd78ecbf92a4d1be10bdd26a72836080e0d41466",
+    "pipeline": "object-v1",
+    "fingerprint": "f5e9d6fc784f7aa1551d219f644ea0bf2b60573aca515b369426f67ad7380fc0",
+    "chain": [
+      {
+        "pass": "decode",
+        "version": "1.0.0",
+        "params": {}
+      },
+      {
+        "pass": "alpha-extract",
+        "version": "1.0.0",
+        "params": {
+          "model": "isnet"
+        }
+      },
+      {
+        "pass": "keep-largest-component",
+        "version": "1.0.0",
+        "params": {
+          "satelliteMaxFraction": 0.05
+        }
+      },
+      {
+        "pass": "repair-accidental-holes",
+        "version": "1.0.0",
+        "params": {
+          "mode": "auto",
+          "maxHoleFraction": 0.001
+        }
+      },
+      {
+        "pass": "trim",
+        "version": "1.0.0",
+        "params": {
+          "alphaThreshold": 2
+        }
+      },
+      {
+        "pass": "pad-center",
+        "version": "1.0.0",
+        "params": {
+          "paddingFraction": 0.04,
+          "targetWidth": 1024,
+          "targetHeight": 1536
+        }
+      },
+      {
+        "pass": "encode-canonical",
+        "version": "1.0.0",
+        "params": {
+          "compressionLevel": 9
+        }
+      }
+    ],
+    "form": "object",
     "source": "draft",
-    "format": "png",
-    "generatedAt": "2026-07-12T03:54:21.184Z"
+    "canonicalSha256": "5948a52c5ea6535fe7b7eeecdec449e787fddf19cb896bc127f26fb8277aa237",
+    "normalizedAt": "2026-07-12T08:23:40.759Z"
   },
   {
     "src": "generated/deleted-photos/new-file.png",
     "assetId": "new-file",
-    "provider": "nano-banana",
-    "model": "gemini-2.5-flash-image",
-    "seed": 2932013402,
-    "briefHash": "41c6b0d2",
-    "generatorVersion": "1.0.0",
-    "promptTemplateVersion": "explainer-image-v1",
+    "rawSha256": "6b72208fb26efb3c84d923884afef1fbc337fcba7e2b002f254a32aa4a300372",
+    "pipeline": "object-v1",
+    "fingerprint": "997bdc303a0a42ff3d0f5585a79a8e4c65641bae3c730f99265f03f4e8b4768a",
+    "chain": [
+      {
+        "pass": "decode",
+        "version": "1.0.0",
+        "params": {}
+      },
+      {
+        "pass": "alpha-extract",
+        "version": "1.0.0",
+        "params": {
+          "model": "isnet"
+        }
+      },
+      {
+        "pass": "keep-largest-component",
+        "version": "1.0.0",
+        "params": {
+          "satelliteMaxFraction": 0.05
+        }
+      },
+      {
+        "pass": "repair-accidental-holes",
+        "version": "1.0.0",
+        "params": {
+          "mode": "auto",
+          "maxHoleFraction": 0.001
+        }
+      },
+      {
+        "pass": "trim",
+        "version": "1.0.0",
+        "params": {
+          "alphaThreshold": 2
+        }
+      },
+      {
+        "pass": "pad-center",
+        "version": "1.0.0",
+        "params": {
+          "paddingFraction": 0.04,
+          "targetWidth": 1024,
+          "targetHeight": 1024
+        }
+      },
+      {
+        "pass": "encode-canonical",
+        "version": "1.0.0",
+        "params": {
+          "compressionLevel": 9
+        }
+      }
+    ],
+    "form": "object",
     "source": "draft",
-    "format": "png",
-    "generatedAt": "2026-07-12T03:54:45.278Z"
+    "canonicalSha256": "ab85364ecb6284853bf16f0271f9041fa6fab02de108cb3b865be73a8f32360f",
+    "normalizedAt": "2026-07-12T08:23:44.160Z"
   },
   {
-    "src": "generated/deleted-photos/phone-photo.png",
-    "assetId": "phone-photo",
-    "provider": "nano-banana",
-    "model": "gemini-2.5-flash-image",
-    "seed": 3604063741,
-    "briefHash": "003c2223",
-    "generatorVersion": "1.0.0",
-    "promptTemplateVersion": "explainer-image-v1",
+    "src": "generated/deleted-photos/plate-library.png",
+    "assetId": "plate-library",
+    "rawSha256": "f16420782f42b3e1942a3f29ca0939fb368ac4ea55df15907dcbb896ef00a8ed",
+    "pipeline": "plate-v1",
+    "fingerprint": "6db9b70d4e973c865bac22f42c5aafc98f64f1d241b237c0933ebc30919577af",
+    "chain": [
+      {
+        "pass": "decode",
+        "version": "1.0.0",
+        "params": {}
+      },
+      {
+        "pass": "cover-fit",
+        "version": "1.0.0",
+        "params": {
+          "targetWidth": 1536,
+          "targetHeight": 864
+        }
+      },
+      {
+        "pass": "opaque-alpha",
+        "version": "1.0.0",
+        "params": {}
+      },
+      {
+        "pass": "encode-canonical",
+        "version": "1.0.0",
+        "params": {
+          "compressionLevel": 9
+        }
+      }
+    ],
+    "form": "plate",
     "source": "draft",
-    "format": "png",
-    "generatedAt": "2026-07-12T03:54:10.930Z"
+    "canonicalSha256": "975153b4012d5d9ecc3060f780f5621ec648aab837743e96eabf184086c8269e",
+    "normalizedAt": "2026-07-12T08:23:44.509Z"
+  },
+  {
+    "src": "generated/deleted-photos/plate-soft.png",
+    "assetId": "plate-soft",
+    "rawSha256": "653e6bc681f65d5f4caed8160ef505b2f4295d720e41f0026090d25c2a08e5f7",
+    "pipeline": "plate-v1",
+    "fingerprint": "6db9b70d4e973c865bac22f42c5aafc98f64f1d241b237c0933ebc30919577af",
+    "chain": [
+      {
+        "pass": "decode",
+        "version": "1.0.0",
+        "params": {}
+      },
+      {
+        "pass": "cover-fit",
+        "version": "1.0.0",
+        "params": {
+          "targetWidth": 1536,
+          "targetHeight": 864
+        }
+      },
+      {
+        "pass": "opaque-alpha",
+        "version": "1.0.0",
+        "params": {}
+      },
+      {
+        "pass": "encode-canonical",
+        "version": "1.0.0",
+        "params": {
+          "compressionLevel": 9
+        }
+      }
+    ],
+    "form": "plate",
+    "source": "draft",
+    "canonicalSha256": "c4aca7a513e75dd38f2bcb93d71d3f30bd3f08decc03a578d8731eabdd64c0cc",
+    "normalizedAt": "2026-07-12T08:23:44.637Z"
+  },
+  {
+    "src": "generated/deleted-photos/shelf.png",
+    "assetId": "shelf",
+    "rawSha256": "968bd0c4ae7ff2ad3f694d2f25ab337384be1377b837db0e6666f86dc30fca0f",
+    "pipeline": "object-v1",
+    "fingerprint": "b758482b086ef1b605807096fa2de1594c3e1a5a13c7dfabdf626a82ce39b2ed",
+    "chain": [
+      {
+        "pass": "decode",
+        "version": "1.0.0",
+        "params": {}
+      },
+      {
+        "pass": "alpha-extract",
+        "version": "1.0.0",
+        "params": {
+          "model": "isnet"
+        }
+      },
+      {
+        "pass": "keep-largest-component",
+        "version": "1.0.0",
+        "params": {
+          "satelliteMaxFraction": 0.05
+        }
+      },
+      {
+        "pass": "repair-accidental-holes",
+        "version": "1.0.0",
+        "params": {
+          "mode": "auto",
+          "maxHoleFraction": 0.001
+        }
+      },
+      {
+        "pass": "trim",
+        "version": "1.0.0",
+        "params": {
+          "alphaThreshold": 2
+        }
+      },
+      {
+        "pass": "pad-center",
+        "version": "1.0.0",
+        "params": {
+          "paddingFraction": 0.04,
+          "targetWidth": 1536,
+          "targetHeight": 1024
+        }
+      },
+      {
+        "pass": "encode-canonical",
+        "version": "1.0.0",
+        "params": {
+          "compressionLevel": 9
+        }
+      }
+    ],
+    "form": "object",
+    "source": "draft",
+    "canonicalSha256": "637929f3aadce53c3bbfa93776e42e1fc1da7f01235365e19480016d97dd9fcc",
+    "normalizedAt": "2026-07-12T08:23:47.402Z"
+  },
+  {
+    "src": "generated/deleted-photos/the-photo-book.png",
+    "assetId": "the-photo-book",
+    "rawSha256": "52af4da5f1a6be2f19411f6896bc30d1f4d766d61d404ce6051d86113c0b88c7",
+    "pipeline": "object-v1",
+    "fingerprint": "997bdc303a0a42ff3d0f5585a79a8e4c65641bae3c730f99265f03f4e8b4768a",
+    "chain": [
+      {
+        "pass": "decode",
+        "version": "1.0.0",
+        "params": {}
+      },
+      {
+        "pass": "alpha-extract",
+        "version": "1.0.0",
+        "params": {
+          "model": "isnet"
+        }
+      },
+      {
+        "pass": "keep-largest-component",
+        "version": "1.0.0",
+        "params": {
+          "satelliteMaxFraction": 0.05
+        }
+      },
+      {
+        "pass": "repair-accidental-holes",
+        "version": "1.0.0",
+        "params": {
+          "mode": "auto",
+          "maxHoleFraction": 0.001
+        }
+      },
+      {
+        "pass": "trim",
+        "version": "1.0.0",
+        "params": {
+          "alphaThreshold": 2
+        }
+      },
+      {
+        "pass": "pad-center",
+        "version": "1.0.0",
+        "params": {
+          "paddingFraction": 0.04,
+          "targetWidth": 1024,
+          "targetHeight": 1024
+        }
+      },
+      {
+        "pass": "encode-canonical",
+        "version": "1.0.0",
+        "params": {
+          "compressionLevel": 9
+        }
+      }
+    ],
+    "form": "object",
+    "source": "draft",
+    "canonicalSha256": "3acf2f45b5d327bbb091b8ead158182ca2ff1a6373aef49db4396dfa624f88e2",
+    "normalizedAt": "2026-07-12T08:23:50.161Z"
   }
 ]

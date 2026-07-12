@@ -4,6 +4,7 @@ import { Img, staticFile } from "remotion";
 import type { Asset, ChartAsset } from "../assets";
 import { clamp01, easeOutCubic } from "../recipes";
 import type { StageTheme } from "../stage";
+import { RENDERER_FONT_STACK } from "./fonts";
 
 /**
  * One visual per asset kind. Everything here is a pure function of
@@ -105,7 +106,7 @@ const TextView: React.FC<{
     <div
       style={{
         color,
-        fontFamily: "Helvetica, Arial, sans-serif",
+        fontFamily: RENDERER_FONT_STACK,
         fontSize,
         fontWeight: 700,
         lineHeight: 1.2,
@@ -184,7 +185,7 @@ const BarChartView: React.FC<{
           textAnchor="middle"
           fill={theme.foregroundColor}
           opacity={0.7}
-          fontFamily="Helvetica, Arial, sans-serif"
+          fontFamily={RENDERER_FONT_STACK}
           fontSize={LABEL_SIZE}
         >
           {datum.label}

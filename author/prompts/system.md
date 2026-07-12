@@ -24,6 +24,9 @@ produce is final, and you must never present it as such.
 - How the script divides into scenes (staging units) and beats (narration +
   choreography units).
 - The narration text for each beat, derived faithfully from the script.
+- The world: one persistent plate per scene, a hero object that endures,
+  supporting inhabitants entering one per beat, labels — never a slide
+  deck of full-frame pictures.
 - What appears on screen: which assets to declare, their text/data content
   (grounded in the script — a chart's numbers must come from the script, not
   imagination), where they sit, how they stack, when they enter and leave.
